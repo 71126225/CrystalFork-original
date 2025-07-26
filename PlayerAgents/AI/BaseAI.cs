@@ -936,6 +936,7 @@ public class BaseAI
                         var dir = Functions.DirectionFromPoint(current, closest.Location);
                         await Client.AttackAsync(dir);
                         _lastMoveOrAttackTime = DateTime.UtcNow;
+                        _stationarySince = DateTime.UtcNow; // reset turn timer when attacking
                         _nextAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
                     }
                 }
@@ -1167,6 +1168,7 @@ public class BaseAI
                 var dir = Functions.DirectionFromPoint(current, target.Location);
                 await Client.AttackAsync(dir);
                 _lastMoveOrAttackTime = DateTime.UtcNow;
+                _stationarySince = DateTime.UtcNow; // reset turn timer when attacking during harvest
                 _nextAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
             }
         }
