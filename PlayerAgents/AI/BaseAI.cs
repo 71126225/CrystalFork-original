@@ -380,15 +380,11 @@ public class BaseAI
         if (DateTime.UtcNow >= _nextBestMapCheck)
         {
             _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromHours(1);
-            string? selected;
-            if (Random.Next(20) == 0)
+            string? selected = Client.GetBestMapForLevel();
+            if (selected == null || Random.Next(20) == 0)
             {
                 var explore = Client.GetRandomExplorationMap();
                 selected = string.IsNullOrEmpty(explore) ? _currentBestMap : explore;
-            }
-            else
-            {
-                selected = Client.GetBestMapForLevel();
             }
 
             if (selected != _currentBestMap)

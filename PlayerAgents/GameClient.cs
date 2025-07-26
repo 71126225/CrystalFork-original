@@ -675,9 +675,7 @@ public sealed partial class GameClient
         if (!string.IsNullOrEmpty(best))
             return best;
 
-        var maps = _movementMemory.GetKnownMaps();
-        if (maps.Count == 0) return null;
-        return maps[_random.Next(maps.Count)];
+        return null;
     }
 
     public string? GetRandomExplorationMap()
