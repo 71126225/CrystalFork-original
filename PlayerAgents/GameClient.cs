@@ -23,6 +23,7 @@ public sealed partial class GameClient
     private CancellationTokenSource? _movementSaveCts;
     private CancellationTokenSource? _movementDeleteCts;
     public event Action? MovementEntryRemoved;
+    public event Action<double>? ExpRateSaved;
     private TcpClient? _client;
     private NetworkStream? _stream;
     private long _pingTime;
@@ -567,6 +568,7 @@ public sealed partial class GameClient
         {
             double rate = _pausedMapExpGained / _pausedMapElapsed.TotalHours;
             _expRateMemory.AddRate(_pausedMapFile, _pausedMapClass.Value, _pausedMapLevel, rate);
+            ExpRateSaved?.Invoke(rate);
         }
 
         _hasPausedMapSession = false;
@@ -590,6 +592,7 @@ public sealed partial class GameClient
         {
             double rate = _mapExpGained / elapsed.TotalHours;
             _expRateMemory.AddRate(_trackedMapFile, _mapStartClass.Value, _mapStartLevel, rate);
+            ExpRateSaved?.Invoke(rate);
         }
 
         _mapElapsedBeforePause = TimeSpan.Zero;
@@ -610,6 +613,7 @@ public sealed partial class GameClient
             {
                 double rate = _mapExpGained / elapsed.TotalHours;
                 _expRateMemory.AddRate(_trackedMapFile, _mapStartClass.Value, _mapStartLevel, rate);
+                ExpRateSaved?.Invoke(rate);
             }
 
             _mapElapsedBeforePause = TimeSpan.Zero;

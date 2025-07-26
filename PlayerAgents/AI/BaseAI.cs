@@ -43,6 +43,7 @@ public class BaseAI
         Client.ItemScoreFunc = GetItemScore;
         Client.DesiredItemsProvider = () => DesiredItems;
         Client.MovementEntryRemoved += OnMovementEntryRemoved;
+        Client.ExpRateSaved += OnExpRateSaved;
     }
 
     private void OnMovementEntryRemoved()
@@ -50,6 +51,15 @@ public class BaseAI
         _travelPath = null;
         _currentRoamPath = null;
         _nextPathFindTime = DateTime.MinValue;
+    }
+
+    private void OnExpRateSaved(double rate)
+    {
+        if (rate <= 0)
+        {
+            _currentBestMap = null;
+            _nextBestMapCheck = DateTime.UtcNow;
+        }
     }
 
     protected virtual int WalkDelay => 600;
@@ -77,6 +87,7 @@ public class BaseAI
     private readonly Dictionary<(Point Location, string Name), DateTime> _itemRetryTimes = new();
     private readonly Dictionary<uint, DateTime> _monsterIgnoreTimes = new();
     private static readonly TimeSpan ItemRetryDelay = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan UnreachableItemRetryDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan DroppedItemRetryDelay = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan MonsterIgnoreDelay = TimeSpan.FromSeconds(10);
     private bool _sentRevive;
@@ -907,7 +918,8 @@ public class BaseAI
                         bool moved = path.Count > 0 && await MoveAlongPathAsync(path, closest.Location);
                         if (!moved)
                         {
-                            _itemRetryTimes[(closest.Location, closest.Name)] = DateTime.UtcNow + ItemRetryDelay;
+                            var delay = path.Count == 0 ? UnreachableItemRetryDelay : ItemRetryDelay;
+                            _itemRetryTimes[(closest.Location, closest.Name)] = DateTime.UtcNow + delay;
                             _currentTarget = null;
                         }
                     }
