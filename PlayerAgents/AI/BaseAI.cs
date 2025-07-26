@@ -381,7 +381,7 @@ public class BaseAI
         {
             _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromHours(1);
             string? selected;
-            if (Random.Next(5) == 0)
+            if (Random.Next(20) == 0)
             {
                 var explore = Client.GetRandomExplorationMap();
                 selected = string.IsNullOrEmpty(explore) ? _currentBestMap : explore;
@@ -394,7 +394,7 @@ public class BaseAI
             if (selected != _currentBestMap)
             {
                 _currentBestMap = selected;
-                UpdatePendingBuyTypes();
+                await SellRepairAndBuyAsync();
                 // force path recalculation if destination changes or interval lapses
                 _travelPath = null;
             }
@@ -566,7 +566,7 @@ public class BaseAI
         return true;
     }
 
-    private async Task HandleInventoryAsync()
+    private async Task HandleInventoryAsync(bool force = false)
     {
         if (_sellingItems) return;
         var inventory = Client.Inventory;
@@ -574,7 +574,7 @@ public class BaseAI
 
         bool full = !Client.HasFreeBagSpace();
         bool heavy = Client.GetCurrentBagWeight() >= Client.GetMaxBagWeight() * 0.9;
-        if (!full && !heavy) return;
+        if (!force && !full && !heavy) return;
 
         var items = inventory.Where(i => i != null && i.Info != null).ToList();
         var keepCounts = GetItemKeepCounts(items);
@@ -619,7 +619,7 @@ public class BaseAI
         Client.UpdateAction("roaming...");
     }
 
-    private async Task HandleEquipmentRepairsAsync()
+    private async Task HandleEquipmentRepairsAsync(bool force = false)
     {
         if (_repairingItems) return;
         var equipment = Client.Equipment;
@@ -629,7 +629,7 @@ public class BaseAI
         if (toRepair.Count == 0) return;
 
         bool urgent = toRepair.Any(i => i.MaxDura > 0 && i.CurrentDura <= i.MaxDura * 0.05);
-        if (!urgent) return;
+        if (!force && !urgent) return;
 
         _repairingItems = true;
         Client.UpdateAction("repairing items...");
@@ -758,6 +758,14 @@ public class BaseAI
             Client.UpdateAction("roaming...");
             UpdateTravelDestination();
         }
+    }
+
+    private async Task SellRepairAndBuyAsync()
+    {
+        await HandleInventoryAsync(true);
+        await HandleEquipmentRepairsAsync(true);
+        UpdatePendingBuyTypes();
+        await HandleBuyingItemsAsync();
     }
 
     public virtual async Task RunAsync()
