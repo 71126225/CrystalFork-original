@@ -82,6 +82,9 @@ public class BaseAI
     private bool _sentRevive;
     private bool _sellingItems;
     private bool _repairingItems;
+    private bool _buyingItems;
+    private bool _buyAttempted;
+    private HashSet<ItemType> _pendingBuyTypes = new();
 
     protected virtual int GetItemScore(UserItem item, EquipmentSlot slot)
     {
@@ -377,19 +380,24 @@ public class BaseAI
         if (DateTime.UtcNow >= _nextBestMapCheck)
         {
             _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromHours(1);
+            string? selected;
             if (Random.Next(5) == 0)
             {
                 var explore = Client.GetRandomExplorationMap();
-                if (!string.IsNullOrEmpty(explore))
-                    _currentBestMap = explore;
+                selected = string.IsNullOrEmpty(explore) ? _currentBestMap : explore;
             }
             else
             {
-                _currentBestMap = Client.GetBestMapForLevel();
+                selected = Client.GetBestMapForLevel();
             }
 
-            // force path recalculation if destination changes or interval lapses
-            _travelPath = null;
+            if (selected != _currentBestMap)
+            {
+                _currentBestMap = selected;
+                UpdatePendingBuyTypes();
+                // force path recalculation if destination changes or interval lapses
+                _travelPath = null;
+            }
         }
 
         if (_currentBestMap == null)
@@ -531,6 +539,9 @@ public class BaseAI
                 if (entry != null)
                     Client.StartNpcInteraction(npcId, entry);
                 break;
+            case NpcInteractionType.Buying:
+                await Client.BuyNeededItemsAtNpcAsync(npcId);
+                break;
             case NpcInteractionType.Selling:
                 if (sellItems != null)
                 {
@@ -650,6 +661,97 @@ public class BaseAI
         Client.UpdateAction("roaming...");
     }
 
+    private bool NeedMoreOfDesiredItem(DesiredItem desired)
+    {
+        var inventory = Client.Inventory;
+        if (inventory == null) return false;
+        var matching = inventory.Where(i => i != null && MatchesDesiredItem(i!, desired)).ToList();
+
+        if (desired.Count.HasValue)
+            return matching.Count < desired.Count.Value;
+
+        if (desired.WeightFraction > 0)
+        {
+            int requiredWeight = (int)Math.Ceiling(Client.GetMaxBagWeight() * desired.WeightFraction);
+            int currentWeight = matching.Sum(i => i!.Weight);
+            return currentWeight < requiredWeight;
+        }
+
+        return false;
+    }
+
+    private HashSet<ItemType> GetNeededBuyTypes()
+    {
+        var needed = new HashSet<ItemType>();
+        foreach (var d in DesiredItems)
+            if (NeedMoreOfDesiredItem(d))
+                needed.Add(d.Type);
+        return needed;
+    }
+
+    private void UpdatePendingBuyTypes()
+    {
+        _pendingBuyTypes = GetNeededBuyTypes();
+        _buyAttempted = false;
+    }
+
+    private void RefreshPendingBuyTypes()
+    {
+        foreach (var type in _pendingBuyTypes.ToList())
+        {
+            var desired = DesiredItems.FirstOrDefault(d => d.Type == type);
+            if (desired == null) continue;
+            if (!NeedMoreOfDesiredItem(desired))
+                _pendingBuyTypes.Remove(type);
+        }
+    }
+
+    private async Task HandleBuyingItemsAsync()
+    {
+        if (_buyingItems || _buyAttempted) return;
+
+        if (_pendingBuyTypes.Count == 0) return;
+
+        var neededTypes = _pendingBuyTypes.ToHashSet();
+
+        _buyAttempted = true;
+        _buyingItems = true;
+        Client.UpdateAction("buying items");
+        Client.IgnoreNpcInteractions = true;
+
+        try
+        {
+            while (neededTypes.Count > 0)
+            {
+                if (!Client.TryFindNearestBuyNpc(neededTypes, out var npcId, out var loc, out var entry, out var matched, includeUnknowns: false))
+                    break;
+
+                if (entry != null)
+                    Client.Log($"Heading to {entry.Name} at {loc.X}, {loc.Y} to buy items");
+
+                bool success = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Buying);
+
+                foreach (var t in matched)
+                    _pendingBuyTypes.Remove(t);
+
+                RefreshPendingBuyTypes();
+                neededTypes = _pendingBuyTypes.ToHashSet();
+
+                if (!success)
+                    break;
+            }
+        }
+        finally
+        {
+            Client.IgnoreNpcInteractions = false;
+            Client.ResumeNpcInteractions();
+            RefreshPendingBuyTypes();
+            _buyingItems = false;
+            Client.UpdateAction("roaming...");
+            UpdateTravelDestination();
+        }
+    }
+
     public virtual async Task RunAsync()
     {
         Point current;
@@ -657,6 +759,7 @@ public class BaseAI
         _lastStationaryLocation = Client.CurrentLocation;
         _stationarySince = DateTime.UtcNow;
         _lastMoveOrAttackTime = DateTime.UtcNow;
+        _buyAttempted = false;
         while (true)
         {
             if (await HandleReviveAsync())
@@ -672,6 +775,7 @@ public class BaseAI
             }
 
             Client.ProcessMapExpRateInterval();
+            await HandleBuyingItemsAsync();
             await ProcessBestMapAsync();
             UpdateTravelDestination();
             bool traveling = _travelPath != null && DateTime.UtcNow >= _travelPauseUntil;
@@ -978,6 +1082,10 @@ public class BaseAI
             else if (_repairingItems)
             {
                 Client.UpdateAction("repairing items...");
+            }
+            else if (_buyingItems)
+            {
+                Client.UpdateAction("buying items");
             }
             else if (traveling)
             {

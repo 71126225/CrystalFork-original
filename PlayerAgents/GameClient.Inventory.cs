@@ -98,6 +98,103 @@ public sealed partial class GameClient
         return entry != null;
     }
 
+    public bool TryFindNearestBuyNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true)
+    {
+        id = 0;
+        location = default;
+        entry = null;
+        if (string.IsNullOrEmpty(_currentMapFile))
+            return false;
+
+        int bestDist = int.MaxValue;
+        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
+
+        foreach (var e in _npcMemory.GetAll())
+        {
+            if (e.MapFile != map) continue;
+            bool knows = e.BuyItems != null && e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type);
+            bool unknown = e.CanBuy && (e.BuyItems == null || !e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type));
+            if (!knows && (!includeUnknowns || !unknown)) continue;
+
+            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                entry = e;
+                location = new Point(e.X, e.Y);
+            }
+        }
+
+        if (entry != null)
+        {
+            foreach (var kv in _npcEntries)
+            {
+                if (kv.Value == entry)
+                {
+                    id = kv.Key;
+                    break;
+                }
+            }
+        }
+
+        return entry != null;
+    }
+
+    public bool TryFindNearestBuyNpc(IEnumerable<ItemType> types, out uint id, out Point location, out NpcEntry? entry, out List<ItemType> matchedTypes, bool includeUnknowns = true)
+    {
+        id = 0;
+        location = default;
+        entry = null;
+        matchedTypes = new List<ItemType>();
+        if (string.IsNullOrEmpty(_currentMapFile))
+            return false;
+
+        int bestDist = int.MaxValue;
+        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
+
+        foreach (var e in _npcMemory.GetAll())
+        {
+            if (e.MapFile != map) continue;
+            var sells = new List<ItemType>();
+            foreach (var t in types)
+            {
+                bool knows = e.BuyItems != null && e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == t);
+                bool unknown = e.CanBuy && (e.BuyItems == null || !e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == t));
+                if (knows || (includeUnknowns && unknown))
+                    sells.Add(t);
+            }
+            if (sells.Count == 0) continue;
+
+            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                entry = e;
+                location = new Point(e.X, e.Y);
+                matchedTypes = sells;
+            }
+        }
+
+        if (entry != null)
+        {
+            foreach (var kv in _npcEntries)
+            {
+                var e = kv.Value;
+                if (ReferenceEquals(e, entry) ||
+                    (e.Name == entry.Name &&
+                     e.MapFile == entry.MapFile &&
+                     e.X == entry.X &&
+                     e.Y == entry.Y))
+                {
+                    id = kv.Key;
+                    break;
+                }
+            }
+        }
+
+        return entry != null;
+    }
+
     public bool TryFindNearestNpc(IEnumerable<ItemType> types, out uint id, out Point location, out NpcEntry? entry, out List<ItemType> matchedTypes, bool includeUnknowns = true)
     {
         id = 0;
@@ -282,6 +379,44 @@ public sealed partial class GameClient
             }
         }
         await RepairNeededItemsAsync(entry, special);
+        try
+        {
+            using var cts = new CancellationTokenSource(200);
+            await WaitForLatestNpcResponseAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    public async Task BuyNeededItemsAtNpcAsync(uint npcId)
+    {
+        var entry = await ResolveNpcEntryAsync(npcId);
+        if (entry == null) return;
+
+        var interaction = new NPCInteraction(this, npcId);
+        var page = await interaction.BeginAsync();
+        string[] buyKeys = { "@BUYSELLNEW", "@BUYSELL", "@BUYNEW", "@PEARLBUY", "@BUY" };
+        var buyKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => buyKeys.Contains(k.ToUpper())) ?? "@BUY";
+        if (buyKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        using (var cts = new CancellationTokenSource(2000))
+        {
+            var waitTask = WaitForNpcGoodsAsync(cts.Token);
+            await interaction.SelectFromMainAsync(buyKey);
+            try
+            {
+                await waitTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        if (_lastNpcGoods != null)
+            await BuyNeededItemsFromGoodsAsync(_lastNpcGoods, _lastNpcGoodsType);
+
         try
         {
             using var cts = new CancellationTokenSource(200);
