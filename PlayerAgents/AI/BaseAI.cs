@@ -517,12 +517,14 @@ public class BaseAI
     private async Task<bool> InteractWithNpcAsync(Point location, uint npcId, NpcEntry? entry,
         NpcInteractionType interactionType, IReadOnlyList<(UserItem item, ushort count)>? sellItems = null)
     {
-        var reached = await Client.MoveWithinRangeAsync(location, npcId, 6, interactionType);
+        var reached = await Client.MoveWithinRangeAsync(location, npcId, 6, interactionType, WalkDelay);
         if (!reached)
         {
             Client.Log($"Could not path to {entry?.Name ?? npcId.ToString()}");
             return false;
         }
+
+        Client.StopMovement();
 
         if (npcId == 0 && entry != null)
             npcId = await Client.ResolveNpcIdAsync(entry);

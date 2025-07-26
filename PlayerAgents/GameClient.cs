@@ -1303,6 +1303,7 @@ public sealed partial class GameClient
 
     internal async void StartNpcInteraction(uint id, NpcEntry entry)
     {
+        StopMovement();
         _dialogNpcId = id;
         _npcInteractionStart = DateTime.UtcNow;
         _npcActionTasks.Clear();
@@ -1312,6 +1313,22 @@ public sealed partial class GameClient
         _npcInteraction = new NPCInteraction(this, id);
         var page = await _npcInteraction.BeginAsync();
         HandleNpcDialogPage(page, entry);
+    }
+
+    internal void BeginTransaction(uint id, NpcEntry entry)
+    {
+        StopMovement();
+        _dialogNpcId = id;
+        _npcInteractionStart = DateTime.UtcNow;
+        _recentNpcInteractions[(entry.Name, entry.MapFile, entry.X, entry.Y)] = DateTime.UtcNow;
+        _npcInteraction = new NPCInteraction(this, id);
+    }
+
+    internal void EndTransaction()
+    {
+        _dialogNpcId = null;
+        _npcInteraction = null;
+        ProcessNextNpcInQueue();
     }
 
     private Func<Task> CreateBuyTask(string key) => async () =>
@@ -1556,14 +1573,14 @@ public sealed partial class GameClient
         ProcessNextNpcInQueue();
     }
 
-    public async Task<bool> MoveWithinRangeAsync(Point target, uint ignoreId, int range, NpcInteractionType interactionType)
+    public async Task<bool> MoveWithinRangeAsync(Point target, uint ignoreId, int range, NpcInteractionType interactionType, int delay)
     {
         var map = CurrentMap;
         if (map == null) return false;
 
         CurrentNpcInteraction = interactionType;
         int attempts = 0;
-        const int maxAttempts = 50; // ~10 seconds with 200ms delay
+        int maxAttempts = Math.Max(1, 10_000 / Math.Max(1, delay)); // ~10 seconds worth of attempts
 
         while (Functions.MaxDistance(CurrentLocation, target) > range && attempts < maxAttempts)
         {
@@ -1572,7 +1589,7 @@ public sealed partial class GameClient
                 return false;
 
             await MovementHelper.MoveAlongPathAsync(this, path, target);
-            await Task.Delay(200);
+            await Task.Delay(delay);
 
             map = CurrentMap;
             if (map == null)

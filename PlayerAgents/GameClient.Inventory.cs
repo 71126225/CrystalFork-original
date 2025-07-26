@@ -307,14 +307,19 @@ public sealed partial class GameClient
 
     public async Task SellItemsToNpcAsync(uint npcId, IReadOnlyList<(UserItem item, ushort count)> items)
     {
+        StopMovement();
         var entry = await ResolveNpcEntryAsync(npcId);
         if (entry == null) return;
-        var interaction = new NPCInteraction(this, npcId);
+        BeginTransaction(npcId, entry);
+        var interaction = _npcInteraction!;
         var page = await interaction.BeginAsync();
         string[] sellKeys = { "@BUYSELLNEW", "@BUYSELL", "@SELL" };
         var sellKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => sellKeys.Contains(k.ToUpper())) ?? "@SELL";
         if (sellKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
+        {
+            EndTransaction();
             return;
+        }
         using (var cts = new System.Threading.CancellationTokenSource(2000))
         {
             var waitTask = WaitForLatestNpcResponseAsync(cts.Token);
@@ -353,19 +358,25 @@ public sealed partial class GameClient
         catch (OperationCanceledException)
         {
         }
+        EndTransaction();
     }
 
     public async Task RepairItemsAtNpcAsync(uint npcId)
     {
+        StopMovement();
         var entry = await ResolveNpcEntryAsync(npcId);
         if (entry == null) return;
-        var interaction = new NPCInteraction(this, npcId);
+        BeginTransaction(npcId, entry);
+        var interaction = _npcInteraction!;
         var page = await interaction.BeginAsync();
         string[] repairKeys = { "@SREPAIR", "@REPAIR" };
         var repairKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => repairKeys.Contains(k.ToUpper())) ?? "@REPAIR";
         bool special = repairKey.Equals("@SREPAIR", StringComparison.OrdinalIgnoreCase);
         if (repairKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
+        {
+            EndTransaction();
             return;
+        }
         using (var cts = new CancellationTokenSource(2000))
         {
             var waitTask = WaitForLatestNpcResponseAsync(cts.Token);
@@ -387,21 +398,27 @@ public sealed partial class GameClient
         catch (OperationCanceledException)
         {
         }
+        EndTransaction();
     }
 
     public async Task BuyNeededItemsAtNpcAsync(uint npcId)
     {
+        StopMovement();
         var entry = await ResolveNpcEntryAsync(npcId);
         if (entry == null) return;
+        BeginTransaction(npcId, entry);
 
-        var interaction = new NPCInteraction(this, npcId);
+        var interaction = _npcInteraction!;
         var page = await interaction.BeginAsync();
         string[] buyKeys = { "@BUYSELLNEW", "@BUYSELL", "@BUYNEW", "@PEARLBUY", "@BUY" };
         var buyKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => buyKeys.Contains(k.ToUpper())) ?? "@BUY";
         if (buyKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
+        {
+            EndTransaction();
             return;
+        }
 
-        using (var cts = new CancellationTokenSource(2000))
+        using (var cts = new CancellationTokenSource(5000))
         {
             var waitTask = WaitForNpcGoodsAsync(cts.Token);
             await interaction.SelectFromMainAsync(buyKey);
@@ -425,6 +442,7 @@ public sealed partial class GameClient
         catch (OperationCanceledException)
         {
         }
+        EndTransaction();
     }
 
     private UserItem? AddItem(UserItem item)

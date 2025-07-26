@@ -300,4 +300,14 @@ public sealed partial class GameClient
         };
         await SendAsync(buy);
     }
+
+    public void StopMovement()
+    {
+        if (_pendingMoveTarget.HasValue && _trackedObjects.TryGetValue(_objectId, out var self))
+        {
+            FireAndForget(TurnAsync(self.Direction));
+        }
+        _pendingMoveTarget = null;
+        _pendingMovementAction.Clear();
+    }
 }
