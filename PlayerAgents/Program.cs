@@ -97,42 +97,6 @@ internal class Program
         Console.ReadKey(true);
     }
 
-    private static void ParseArgs(string[] args, int startIndex, Config cfg)
-    {
-        for (int i = startIndex; i < args.Length; i++)
-        {
-            string arg = args[i];
-            string? value = null;
-            if (arg.Contains('='))
-            {
-                var parts = arg.Split('=', 2);
-                arg = parts[0];
-                value = parts[1];
-            }
-            switch (arg)
-            {
-                case "--account":
-                case "-a":
-                    value ??= i + 1 < args.Length ? args[++i] : null;
-                    if (value != null) cfg.AccountID = value;
-                    break;
-                case "--password":
-                case "-p":
-                    value ??= i + 1 < args.Length ? args[++i] : null;
-                    if (value != null) cfg.Password = value;
-                    break;
-                case "--character":
-                case "-c":
-                    value ??= i + 1 < args.Length ? args[++i] : null;
-                    if (value != null) cfg.CharacterName = value;
-                    break;
-                default:
-                    Console.WriteLine($"Unknown argument '{arg}'");
-                    break;
-            }
-        }
-    }
-
     private static async Task Main(string[] args)
     {
         try
@@ -154,7 +118,37 @@ internal class Program
             }
 
             var config = JsonSerializer.Deserialize<Config>(await File.ReadAllTextAsync(configPath)) ?? new Config();
-            ParseArgs(args, index, config);
+
+            for (; index < args.Length; index++)
+            {
+                var arg = args[index];
+
+                switch (arg)
+                {
+                    case "--account":
+                    case "-a":
+                        if (index + 1 < args.Length) config.AccountID = args[++index];
+                        break;
+                    case "--password":
+                    case "-p":
+                        if (index + 1 < args.Length) config.Password = args[++index];
+                        break;
+                    case "--character":
+                    case "-c":
+                        if (index + 1 < args.Length) config.CharacterName = args[++index];
+                        break;
+                    default:
+                        if (arg.StartsWith("--account="))
+                            config.AccountID = arg.Substring("--account=".Length);
+                        else if (arg.StartsWith("--password="))
+                            config.Password = arg.Substring("--password=".Length);
+                        else if (arg.StartsWith("--character="))
+                            config.CharacterName = arg.Substring("--character=".Length);
+                        else
+                            Console.WriteLine($"Unknown argument '{arg}'");
+                        break;
+                }
+            }
 
             var npcFile = Path.Combine(AppContext.BaseDirectory, "npc_memory.json");
             var npcMemory = new NpcMemoryBank(npcFile);

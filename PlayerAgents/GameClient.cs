@@ -141,7 +141,6 @@ public sealed partial class GameClient
     }
 
     private readonly ConcurrentDictionary<uint, NpcEntry> _npcEntries = new();
-    private readonly ConcurrentDictionary<NpcEntry, uint> _npcEntryIds = new();
     private uint? _dialogNpcId;
     private readonly Queue<uint> _npcQueue = new();
     private readonly Queue<(string key, Func<Task> action)> _npcActionTasks = new();
@@ -1644,7 +1643,6 @@ public sealed partial class GameClient
         var ids = _npcEntries.Where(kv => kv.Value == entry).Select(kv => kv.Key).ToList();
         foreach (var id in ids)
             _npcEntries.TryRemove(id, out _);
-        _npcEntryIds.TryRemove(entry, out _);
 
         if (ids.Count > 0)
         {
