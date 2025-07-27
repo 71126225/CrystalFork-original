@@ -1295,6 +1295,9 @@ public sealed partial class GameClient
         if (IgnoreNpcInteractions || _movementSaveCts != null)
             return false;
 
+        if (_pendingSellChecks.Count > 0 || _pendingRepairChecks.Count > 0)
+            return false;
+
         while (_npcQueue.Count > 0)
         {
             var next = _npcQueue.Dequeue();

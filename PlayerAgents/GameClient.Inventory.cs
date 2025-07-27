@@ -67,6 +67,7 @@ public sealed partial class GameClient
         foreach (var e in _npcMemory.GetAll())
         {
             if (e.MapFile != map) continue;
+            if (!e.CheckedMerchantKeys) continue;
             bool knows = special ? (e.SpecialRepairItemTypes != null && e.SpecialRepairItemTypes.Contains(type))
                                  : (e.RepairItemTypes != null && e.RepairItemTypes.Contains(type));
             bool unknown = (special ? e.CanSpecialRepair : e.CanRepair) &&
@@ -267,6 +268,7 @@ public sealed partial class GameClient
         foreach (var e in _npcMemory.GetAll())
         {
             if (e.MapFile != map) continue;
+            if (!e.CheckedMerchantKeys) continue;
             var repairs = new List<ItemType>();
             foreach (var t in types)
             {

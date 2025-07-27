@@ -427,7 +427,10 @@ public class BaseAI
             {
                 _currentBestMap = selected;
                 _refreshInventory = true;
+                var beforeGold = Client.Gold;
                 await SellRepairAndBuyAsync();
+                if (!InventoryNeedsRefresh() || Client.Gold == beforeGold)
+                    _refreshInventory = false;
                 // force path recalculation if destination changes or interval lapses
                 _travelPath = null;
             }
@@ -860,8 +863,9 @@ public class BaseAI
             Client.ProcessMapExpRateInterval();
             if (_refreshInventory)
             {
+                var beforeGold = Client.Gold;
                 await SellRepairAndBuyAsync();
-                if (!InventoryNeedsRefresh())
+                if (!InventoryNeedsRefresh() || Client.Gold == beforeGold)
                     _refreshInventory = false;
             }
             else
