@@ -85,6 +85,7 @@ public class BaseAI
     private Point _lastStationaryLocation = Point.Empty;
     private DateTime _travelStuckSince = DateTime.MinValue;
     private DateTime _lastMoveOrAttackTime = DateTime.MinValue;
+    private DateTime _movementSaveSince = DateTime.MinValue;
     
     private readonly Dictionary<(Point Location, string Name), DateTime> _itemRetryTimes = new();
     private readonly Dictionary<uint, DateTime> _monsterIgnoreTimes = new();
@@ -856,8 +857,21 @@ public class BaseAI
 
             if (Client.MovementSavePending)
             {
+                if (_movementSaveSince == DateTime.MinValue)
+                    _movementSaveSince = DateTime.UtcNow;
+                else if (DateTime.UtcNow - _movementSaveSince > TimeSpan.FromSeconds(5))
+                {
+                    Client.Log("Movement save stuck, clearing");
+                    Client.ForceClearMovementSave();
+                    _movementSaveSince = DateTime.MinValue;
+                }
+
                 await Task.Delay(WalkDelay);
                 continue;
+            }
+            else
+            {
+                _movementSaveSince = DateTime.MinValue;
             }
 
             Client.ProcessMapExpRateInterval();
@@ -1213,6 +1227,15 @@ public class BaseAI
                 var dir = (MirDirection)Random.Next(8);
                 await Client.TurnAsync(dir);
                 _stationarySince = DateTime.UtcNow;
+
+                // Reset roaming state if we've been stuck for a while
+                _searchDestination = null;
+                _currentRoamPath = null;
+                _lostTargetLocation = null;
+                _lostTargetPath = null;
+                _travelPath = null;
+                _nextPathFindTime = DateTime.MinValue;
+                Client.Log("Roaming reset due to inactivity");
             }
 
             if (DateTime.UtcNow - _lastMoveOrAttackTime > TimeSpan.FromSeconds(60) &&

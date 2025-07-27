@@ -644,6 +644,14 @@ public sealed partial class GameClient
         _movementDeleteCts = null;
     }
 
+    internal void ForceClearMovementSave()
+    {
+        _movementSaveCts?.Cancel();
+        _movementSaveCts = null;
+        _pendingMoveTarget = null;
+        _pendingMovementAction.Clear();
+    }
+
     private void MaybeStartMovementDeleteCheck()
     {
         if (_movementDeleteCts != null) return;
