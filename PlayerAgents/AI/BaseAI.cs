@@ -525,9 +525,9 @@ public class BaseAI
         NpcInteractionType interactionType, IReadOnlyList<(UserItem item, ushort count)>? sellItems = null)
     {
         bool reached = false;
-        for (int attempt = 0; attempt < 5 && !reached; attempt++)
+        for (int attempt = 0; attempt < 2 && !reached; attempt++)
         {
-            reached = await Client.MoveWithinRangeAsync(location, npcId, 6, interactionType, WalkDelay);
+            reached = await Client.MoveWithinRangeAsync(location, npcId, Globals.DataRange, interactionType, WalkDelay);
             if (!reached)
                 await Task.Delay(1000);
         }
@@ -536,8 +536,6 @@ public class BaseAI
             Client.Log($"Could not path to {entry?.Name ?? npcId.ToString()}");
             return false;
         }
-
-        Client.StopMovement();
 
         if (npcId == 0 && entry != null)
             npcId = await Client.ResolveNpcIdAsync(entry);

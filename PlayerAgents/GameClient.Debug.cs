@@ -35,6 +35,10 @@ public sealed partial class GameClient
         {
             StopDebug(sender);
         }
+        else if (msg.Equals("inventory", StringComparison.OrdinalIgnoreCase))
+        {
+            FireAndForget(SendInventoryAsync(sender));
+        }
     }
 
     private void StartDebug(string sender)
@@ -49,5 +53,22 @@ public sealed partial class GameClient
         if (!_debugActive || _debugRecipient != sender) return;
         _debugActive = false;
         _debugRecipient = null;
+    }
+
+    private async Task SendInventoryAsync(string target)
+    {
+        if (_inventory == null) return;
+
+        var groups = _inventory
+            .Where(i => i != null && i.Info != null)
+            .GroupBy(i => i!.Info!.FriendlyName)
+            .Select(g => new { Name = g.Key, Count = g.Sum(i => (int)i!.Count) })
+            .OrderBy(g => g.Name);
+
+        foreach (var g in groups)
+        {
+            await SendWhisperAsync(target, $"{g.Name} x{g.Count}");
+            await Task.Delay(500);
+        }
     }
 }

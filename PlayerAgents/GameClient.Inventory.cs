@@ -307,7 +307,6 @@ public sealed partial class GameClient
 
     public async Task SellItemsToNpcAsync(uint npcId, IReadOnlyList<(UserItem item, ushort count)> items)
     {
-        StopMovement();
         var entry = await ResolveNpcEntryAsync(npcId);
         if (entry == null) return;
         BeginTransaction(npcId, entry);
@@ -363,7 +362,6 @@ public sealed partial class GameClient
 
     public async Task RepairItemsAtNpcAsync(uint npcId)
     {
-        StopMovement();
         var entry = await ResolveNpcEntryAsync(npcId);
         if (entry == null) return;
         BeginTransaction(npcId, entry);
@@ -403,7 +401,6 @@ public sealed partial class GameClient
 
     public async Task BuyNeededItemsAtNpcAsync(uint npcId)
     {
-        StopMovement();
         var entry = await ResolveNpcEntryAsync(npcId);
         if (entry == null) return;
         BeginTransaction(npcId, entry);
