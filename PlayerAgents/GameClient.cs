@@ -375,12 +375,13 @@ public sealed partial class GameClient
         }
     }
 
-    private async Task BuyNeededItemsFromGoodsAsync(List<UserItem> goods, PanelType type)
+    private async Task<bool> BuyNeededItemsFromGoodsAsync(List<UserItem> goods, PanelType type)
     {
-        if (goods.Count == 0) return;
+        bool cantAfford = false;
+        if (goods.Count == 0) return cantAfford;
 
         var desired = DesiredItemsProvider?.Invoke();
-        if (desired == null && _equipment == null) return;
+        if (desired == null && _equipment == null) return false;
 
         foreach (var g in goods)
             Bind(g);
@@ -447,7 +448,12 @@ public sealed partial class GameClient
                 freeSlots--;
                 currentWeight += item.Weight;
             }
+            else if (need)
+            {
+                cantAfford = true;
+            }
         }
+        return cantAfford;
     }
 
     public IReadOnlyList<UserItem>? Inventory => _inventory;
@@ -1117,11 +1123,12 @@ public sealed partial class GameClient
         }
     }
 
-    private async Task RepairNeededItemsAsync(NpcEntry entry, bool special = false)
+    private async Task<bool> RepairNeededItemsAsync(NpcEntry entry, bool special = false)
     {
-        if (_inventory == null || _equipment == null) return;
+        bool cantAfford = false;
+        if (_inventory == null || _equipment == null) return cantAfford;
         var repairList = special ? entry.SpecialRepairItemTypes : entry.RepairItemTypes;
-        if (repairList == null || repairList.Count == 0) return;
+        if (repairList == null || repairList.Count == 0) return cantAfford;
 
         var items = new List<(UserItem item, EquipmentSlot? slot)>();
 
@@ -1143,6 +1150,17 @@ public sealed partial class GameClient
             }
 
             Log($"I am {(special ? "special repairing" : "repairing")} {item.Info?.FriendlyName ?? "item"} at {entry.Name}");
+            uint cost = item.RepairPrice() * (special ? 3U : 1U);
+            if (_gold < cost)
+            {
+                cantAfford = true;
+                if (slot.HasValue)
+                {
+                    await EquipItemAsync(item, slot.Value);
+                    await Task.Delay(200);
+                }
+                break;
+            }
             using var cts = new CancellationTokenSource(2000);
             var waitTask = WaitForRepairItemAsync(item.UniqueID, cts.Token);
             try
@@ -1164,6 +1182,7 @@ public sealed partial class GameClient
                 await Task.Delay(200);
             }
         }
+        return cantAfford;
     }
 
     private bool HasUnknownSellTypes(NpcEntry entry)

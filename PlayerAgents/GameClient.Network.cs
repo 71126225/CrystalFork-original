@@ -628,7 +628,7 @@ public sealed partial class GameClient
                 {
                     bool special = p is S.NPCSRepair;
                     bool changed = false;
-                    if (!npcRepairEntry.CanRepair)
+                    if (!special && !npcRepairEntry.CanRepair)
                     {
                         npcRepairEntry.CanRepair = true;
                         changed = true;

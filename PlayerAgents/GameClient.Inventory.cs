@@ -6,9 +6,33 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using Shared;
+using PlayerAgents.Map;
 
 public sealed partial class GameClient
 {
+    private int GetNpcTravelDistance(NpcEntry entry)
+    {
+        if (string.IsNullOrEmpty(_currentMapFile))
+            return int.MaxValue;
+
+        var destPath = Path.Combine(MapManager.MapDirectory, entry.MapFile + ".map");
+        if (string.Equals(Path.GetFileNameWithoutExtension(_currentMapFile), entry.MapFile, StringComparison.OrdinalIgnoreCase))
+            return Functions.MaxDistance(_currentLocation, new Point(entry.X, entry.Y));
+
+        var travel = MovementHelper.FindTravelPath(this, destPath);
+        if (travel == null)
+            return int.MaxValue;
+
+        var current = _currentLocation;
+        int dist = 0;
+        foreach (var step in travel)
+        {
+            dist += Functions.MaxDistance(current, new Point(step.SourceX, step.SourceY));
+            current = new Point(step.DestinationX, step.DestinationY);
+        }
+        dist += Functions.MaxDistance(current, new Point(entry.X, entry.Y));
+        return dist;
+    }
     public bool TryFindNearestNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true)
     {
         id = 0;
@@ -18,18 +42,16 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             bool knows = e.SellItemTypes != null && e.SellItemTypes.Contains(type);
             bool unknown = e.CanSell &&
                 (e.SellItemTypes == null || !e.SellItemTypes.Contains(type)) &&
                 (e.CannotSellItemTypes == null || !e.CannotSellItemTypes.Contains(type));
             if (!knows && (!includeUnknowns || !unknown)) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcTravelDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -62,11 +84,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             if (!e.CheckedMerchantKeys) continue;
             bool knows = special ? (e.SpecialRepairItemTypes != null && e.SpecialRepairItemTypes.Contains(type))
                                  : (e.RepairItemTypes != null && e.RepairItemTypes.Contains(type));
@@ -75,7 +95,7 @@ public sealed partial class GameClient
                 ((special ? e.CannotSpecialRepairItemTypes : e.CannotRepairItemTypes) == null || !(special ? e.CannotSpecialRepairItemTypes : e.CannotRepairItemTypes)!.Contains(type));
             if (!knows && (!includeUnknowns || !unknown)) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcTravelDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -108,16 +128,14 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             bool knows = e.BuyItems != null && e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type);
             bool unknown = e.CanBuy && (e.BuyItems == null || !e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type));
             if (!knows && (!includeUnknowns || !unknown)) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcTravelDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -151,11 +169,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             var sells = new List<ItemType>();
             foreach (var t in types)
             {
@@ -166,7 +182,7 @@ public sealed partial class GameClient
             }
             if (sells.Count == 0) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcTravelDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -206,11 +222,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             var sells = new List<ItemType>();
             foreach (var t in types)
             {
@@ -223,7 +237,7 @@ public sealed partial class GameClient
             }
             if (sells.Count == 0) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcTravelDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -263,11 +277,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             if (!e.CheckedMerchantKeys) continue;
             var repairs = new List<ItemType>();
             foreach (var t in types)
@@ -282,7 +294,7 @@ public sealed partial class GameClient
             }
             if (repairs.Count == 0) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcTravelDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -362,10 +374,10 @@ public sealed partial class GameClient
         EndTransaction();
     }
 
-    public async Task RepairItemsAtNpcAsync(uint npcId)
+    public async Task<bool> RepairItemsAtNpcAsync(uint npcId)
     {
         var entry = await ResolveNpcEntryAsync(npcId);
-        if (entry == null) return;
+        if (entry == null) return false;
         BeginTransaction(npcId, entry);
         var interaction = _npcInteraction!;
         var page = await interaction.BeginAsync();
@@ -375,7 +387,7 @@ public sealed partial class GameClient
         if (repairKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
         {
             EndTransaction();
-            return;
+            return false;
         }
         using (var cts = new CancellationTokenSource(2000))
         {
@@ -389,7 +401,7 @@ public sealed partial class GameClient
             {
             }
         }
-        await RepairNeededItemsAsync(entry, special);
+        var cantAfford = await RepairNeededItemsAsync(entry, special);
         try
         {
             using var cts = new CancellationTokenSource(200);
@@ -399,12 +411,13 @@ public sealed partial class GameClient
         {
         }
         EndTransaction();
+        return cantAfford;
     }
 
-    public async Task BuyNeededItemsAtNpcAsync(uint npcId)
+    public async Task<bool> BuyNeededItemsAtNpcAsync(uint npcId)
     {
         var entry = await ResolveNpcEntryAsync(npcId);
-        if (entry == null) return;
+        if (entry == null) return false;
         BeginTransaction(npcId, entry);
 
         var interaction = _npcInteraction!;
@@ -414,7 +427,7 @@ public sealed partial class GameClient
         if (buyKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
         {
             EndTransaction();
-            return;
+            return false;
         }
 
         using (var cts = new CancellationTokenSource(5000))
@@ -430,8 +443,9 @@ public sealed partial class GameClient
             }
         }
 
+        bool cantAfford = false;
         if (_lastNpcGoods != null)
-            await BuyNeededItemsFromGoodsAsync(_lastNpcGoods, _lastNpcGoodsType);
+            cantAfford = await BuyNeededItemsFromGoodsAsync(_lastNpcGoods, _lastNpcGoodsType);
 
         try
         {
@@ -442,6 +456,7 @@ public sealed partial class GameClient
         {
         }
         EndTransaction();
+        return cantAfford;
     }
 
     private UserItem? AddItem(UserItem item)

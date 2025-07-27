@@ -427,11 +427,15 @@ public class BaseAI
             if (selected != _currentBestMap)
             {
                 _currentBestMap = selected;
-                _refreshInventory = true;
-                var beforeGold = Client.Gold;
-                await SellRepairAndBuyAsync();
-                if (!InventoryNeedsRefresh() || Client.Gold == beforeGold)
-                    _refreshInventory = false;
+                var currentMap = string.IsNullOrEmpty(Client.CurrentMapFile) ? null :
+                    Path.GetFileNameWithoutExtension(Client.CurrentMapFile);
+                if (!string.Equals(selected, currentMap, StringComparison.OrdinalIgnoreCase))
+                {
+                    _refreshInventory = true;
+                    var cantAfford = await SellRepairAndBuyAsync();
+                    if (!InventoryNeedsRefresh() || cantAfford)
+                        _refreshInventory = false;
+                }
                 // force path recalculation if destination changes or interval lapses
                 _travelPath = null;
             }
@@ -555,7 +559,8 @@ public class BaseAI
     {
         Success,
         PathFailed,
-        NpcNotFound
+        NpcNotFound,
+        CantAfford
     }
 
     private async Task<NpcInteractionResult> InteractWithNpcAsync(Point location, uint npcId, NpcEntry? entry,
@@ -592,7 +597,8 @@ public class BaseAI
                     Client.StartNpcInteraction(npcId, entry);
                 break;
             case NpcInteractionType.Buying:
-                await Client.BuyNeededItemsAtNpcAsync(npcId);
+                if (await Client.BuyNeededItemsAtNpcAsync(npcId))
+                    return NpcInteractionResult.CantAfford;
                 break;
             case NpcInteractionType.Selling:
                 if (sellItems != null)
@@ -602,7 +608,8 @@ public class BaseAI
                 }
                 break;
             case NpcInteractionType.Repairing:
-                await Client.RepairItemsAtNpcAsync(npcId);
+                if (await Client.RepairItemsAtNpcAsync(npcId))
+                    return NpcInteractionResult.CantAfford;
                 Client.Log($"Finished repairing at {entry?.Name ?? npcId.ToString()}");
                 break;
         }
@@ -665,17 +672,18 @@ public class BaseAI
         Client.UpdateAction("roaming...");
     }
 
-    private async Task HandleEquipmentRepairsAsync(bool force = false)
+    private async Task<bool> HandleEquipmentRepairsAsync(bool force = false)
     {
-        if (_repairingItems) return;
+        bool cantAfford = false;
+        if (_repairingItems) return cantAfford;
         var equipment = Client.Equipment;
-        if (equipment == null) return;
+        if (equipment == null) return cantAfford;
 
         var toRepair = equipment.Where(i => i != null && i.Info != null && i.Info.Type != ItemType.Torch && i.CurrentDura < i.MaxDura).ToList();
-        if (toRepair.Count == 0) return;
+        if (toRepair.Count == 0) return cantAfford;
 
         bool urgent = toRepair.Any(i => i.MaxDura > 0 && i.CurrentDura <= i.MaxDura * 0.05);
-        if (!force && !urgent) return;
+        if (!force && !urgent) return cantAfford;
 
         _repairingItems = true;
         Client.UpdateAction("repairing items...");
@@ -705,6 +713,8 @@ public class BaseAI
             }
             else
             {
+                if (result == NpcInteractionResult.CantAfford)
+                    cantAfford = true;
                 break;
             }
         }
@@ -713,6 +723,7 @@ public class BaseAI
         Client.ResumeNpcInteractions();
         _repairingItems = false;
         Client.UpdateAction("roaming...");
+        return cantAfford;
     }
 
     private bool NeedMoreOfDesiredItem(DesiredItem desired)
@@ -760,11 +771,12 @@ public class BaseAI
         }
     }
 
-    private async Task HandleBuyingItemsAsync()
+    private async Task<bool> HandleBuyingItemsAsync()
     {
-        if (_buyingItems || _buyAttempted) return;
+        bool cantAfford = false;
+        if (_buyingItems || _buyAttempted) return cantAfford;
 
-        if (_pendingBuyTypes.Count == 0) return;
+        if (_pendingBuyTypes.Count == 0) return cantAfford;
 
         var neededTypes = _pendingBuyTypes.ToHashSet();
 
@@ -792,7 +804,11 @@ public class BaseAI
                 neededTypes = _pendingBuyTypes.ToHashSet();
 
                 if (result != NpcInteractionResult.Success)
+                {
+                    if (result == NpcInteractionResult.CantAfford)
+                        cantAfford = true;
                     break;
+                }
             }
         }
         finally
@@ -804,14 +820,16 @@ public class BaseAI
             Client.UpdateAction("roaming...");
             UpdateTravelDestination();
         }
+        return cantAfford;
     }
 
-    private async Task SellRepairAndBuyAsync()
+    private async Task<bool> SellRepairAndBuyAsync()
     {
         await HandleInventoryAsync(true);
-        await HandleEquipmentRepairsAsync(true);
+        bool cantAfford = await HandleEquipmentRepairsAsync(true);
         UpdatePendingBuyTypes();
-        await HandleBuyingItemsAsync();
+        cantAfford |= await HandleBuyingItemsAsync();
+        return cantAfford;
     }
 
     private bool InventoryNeedsRefresh()
@@ -877,9 +895,8 @@ public class BaseAI
             Client.ProcessMapExpRateInterval();
             if (_refreshInventory)
             {
-                var beforeGold = Client.Gold;
-                await SellRepairAndBuyAsync();
-                if (!InventoryNeedsRefresh() || Client.Gold == beforeGold)
+                var cantAfford = await SellRepairAndBuyAsync();
+                if (!InventoryNeedsRefresh() || cantAfford)
                     _refreshInventory = false;
             }
             else

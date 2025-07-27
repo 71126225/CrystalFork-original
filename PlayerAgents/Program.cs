@@ -27,7 +27,7 @@ public sealed class Config
     public bool AutoScale { get; set; } = true;
     public double AutoScaleMinCpu { get; set; } = 50.0;
     public double AutoScaleMaxCpu { get; set; } = 60.0;
-
+    public int AutoScaleBatchSize { get; set; } = 50;
     // Single agent fields for backwards compatibility
     public string AccountID { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
@@ -274,10 +274,10 @@ internal class Program
                             low = high = 0;
                         }
 
-                        if (low >= 30)
+                        if (low >= 10)
                         {
                             low = 0;
-                            for (int i = 0; i < 50; i++)
+                            for (int i = 0; i < config.AutoScaleBatchSize; i++)
                             {
                                 lock (clientLock)
                                 {
@@ -303,7 +303,7 @@ internal class Program
                             high = 0;
                             List<GameClient> toDrop;
                             lock (clientLock)
-                                toDrop = runningClients.TakeLast(50).ToList();
+                                toDrop = runningClients.TakeLast(config.AutoScaleBatchSize).ToList();
 
                             foreach (var c in toDrop)
                             {
