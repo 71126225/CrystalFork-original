@@ -1575,6 +1575,26 @@ public sealed partial class GameClient
         ProcessNextNpcInQueue();
     }
 
+    public void RemoveNpc(NpcEntry entry)
+    {
+        var ids = _npcEntries.Where(kv => kv.Value == entry).Select(kv => kv.Key).ToList();
+        foreach (var id in ids)
+            _npcEntries.TryRemove(id, out _);
+
+        if (ids.Count > 0)
+        {
+            int count = _npcQueue.Count;
+            for (int i = 0; i < count; i++)
+            {
+                var qid = _npcQueue.Dequeue();
+                if (!ids.Contains(qid))
+                    _npcQueue.Enqueue(qid);
+            }
+        }
+
+        _npcMemory.RemoveNpc(entry);
+    }
+
     public async Task<bool> MoveWithinRangeAsync(Point target, uint ignoreId, int range, NpcInteractionType interactionType, int delay)
     {
         var map = CurrentMap;

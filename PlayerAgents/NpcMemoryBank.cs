@@ -93,4 +93,23 @@ public sealed class NpcMemoryBank : MemoryBankBase<NpcEntry>
 
         return entry!;
     }
+
+    public bool RemoveNpc(NpcEntry entry)
+    {
+        bool removed = false;
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            var key = (entry.Name, entry.MapFile, entry.X, entry.Y);
+            if (_lookup.Remove(key))
+            {
+                removed = _entries.Remove(entry);
+            }
+        }
+
+        if (removed)
+            Save();
+
+        return removed;
+    }
 }

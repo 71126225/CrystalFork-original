@@ -521,7 +521,14 @@ public class BaseAI
         return keep;
     }
 
-    private async Task<bool> InteractWithNpcAsync(Point location, uint npcId, NpcEntry? entry,
+    private enum NpcInteractionResult
+    {
+        Success,
+        PathFailed,
+        NpcNotFound
+    }
+
+    private async Task<NpcInteractionResult> InteractWithNpcAsync(Point location, uint npcId, NpcEntry? entry,
         NpcInteractionType interactionType, IReadOnlyList<(UserItem item, ushort count)>? sellItems = null)
     {
         bool reached = false;
@@ -534,7 +541,7 @@ public class BaseAI
         if (!reached)
         {
             Client.Log($"Could not path to {entry?.Name ?? npcId.ToString()}");
-            return false;
+            return NpcInteractionResult.PathFailed;
         }
 
         if (npcId == 0 && entry != null)
@@ -543,7 +550,9 @@ public class BaseAI
         if (npcId == 0)
         {
             Client.Log($"Could not find NPC to {interactionType.ToString().ToLower()}");
-            return false;
+            if (entry != null)
+                Client.RemoveNpc(entry);
+            return NpcInteractionResult.NpcNotFound;
         }
 
         switch (interactionType)
@@ -568,7 +577,7 @@ public class BaseAI
                 break;
         }
 
-        return true;
+        return NpcInteractionResult.Success;
     }
 
     private async Task HandleInventoryAsync(bool force = false)
@@ -606,15 +615,17 @@ public class BaseAI
             Client.Log($"Heading to {entry?.Name ?? "unknown npc"} at {loc.X},{loc.Y} to sell {count} items");
 
             var sellItems = matchedTypes.SelectMany(t => sellGroups[t]).Where(x => x.item != null).ToList();
-            bool success = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Selling, sellItems);
+            var result = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Selling, sellItems);
 
-            if (success)
+            if (result == NpcInteractionResult.Success)
             {
                 foreach (var t in matchedTypes)
                     sellGroups.Remove(t);
             }
             else
             {
+                if (result == NpcInteractionResult.NpcNotFound)
+                    continue;
                 break;
             }
         }
@@ -655,9 +666,9 @@ public class BaseAI
                     Client.Log($"I am heading to {entry.Name} at {loc.X}, {loc.Y} to repair {string.Join(", ", itemNames)}");
             }
 
-            bool success = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Repairing);
+            var result = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Repairing);
 
-            if (success)
+            if (result == NpcInteractionResult.Success)
             {
                 foreach (var t in matched)
                     types.Remove(t);
@@ -742,7 +753,7 @@ public class BaseAI
                 if (entry != null)
                     Client.Log($"Heading to {entry.Name} at {loc.X}, {loc.Y} to buy items");
 
-                bool success = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Buying);
+                var result = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Buying);
 
                 foreach (var t in matched)
                     _pendingBuyTypes.Remove(t);
@@ -750,7 +761,7 @@ public class BaseAI
                 RefreshPendingBuyTypes();
                 neededTypes = _pendingBuyTypes.ToHashSet();
 
-                if (!success)
+                if (result != NpcInteractionResult.Success)
                     break;
             }
         }
@@ -854,7 +865,7 @@ public class BaseAI
             if (!Client.IsProcessingNpc && Client.TryDequeueNpc(out var npcId, out var entry))
             {
                 var npcLoc = new Point(entry.X, entry.Y);
-                await InteractWithNpcAsync(npcLoc, npcId, entry, NpcInteractionType.General);
+                _ = await InteractWithNpcAsync(npcLoc, npcId, entry, NpcInteractionType.General);
                 await Task.Delay(WalkDelay);
                 continue;
             }
