@@ -1665,10 +1665,7 @@ public sealed partial class GameClient
             var localMap = CurrentMap;
             if (localMap == null) return false;
 
-            int attempts = 0;
-            int maxAttempts = Math.Max(1, 10_000 / Math.Max(1, delay));
-
-            while (!Disconnected && Functions.MaxDistance(CurrentLocation, dest) > destRange && attempts < maxAttempts)
+            while (!Disconnected && Functions.MaxDistance(CurrentLocation, dest) > destRange)
             {
                 var p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
                 if (p.Count == 0)
@@ -1680,8 +1677,6 @@ public sealed partial class GameClient
                 localMap = CurrentMap;
                 if (localMap == null)
                     return false;
-
-                attempts++;
             }
 
             return Functions.MaxDistance(CurrentLocation, dest) <= destRange;

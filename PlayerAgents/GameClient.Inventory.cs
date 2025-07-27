@@ -248,6 +248,7 @@ public sealed partial class GameClient
             }
             catch (OperationCanceledException)
             {
+                _pendingSellChecks.Remove(item.UniqueID);
             }
             await Task.Delay(200);
         }
