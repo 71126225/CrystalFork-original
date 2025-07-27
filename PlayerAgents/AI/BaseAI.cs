@@ -71,7 +71,20 @@ public class BaseAI
     protected virtual TimeSpan TravelPathFindInterval => TimeSpan.FromSeconds(1);
     protected virtual TimeSpan FailedTravelPathFindDelay => TimeSpan.FromSeconds(1);
     protected virtual TimeSpan EquipCheckInterval => TimeSpan.FromSeconds(5);
-    protected virtual IReadOnlyList<DesiredItem> DesiredItems => Array.Empty<DesiredItem>();
+    protected virtual double HpPotionWeightFraction => 0;
+    protected virtual double MpPotionWeightFraction => 0;
+    protected virtual Stat[] OffensiveStats => Array.Empty<Stat>();
+    protected virtual Stat[] DefensiveStats => Array.Empty<Stat>();
+
+    private IReadOnlyList<DesiredItem>? _baseDesiredItems;
+    protected virtual IReadOnlyList<DesiredItem> DesiredItems =>
+        _baseDesiredItems ??= new DesiredItem[]
+        {
+            new DesiredItem(ItemType.Potion, hpPotion: true, weightFraction: HpPotionWeightFraction),
+            new DesiredItem(ItemType.Potion, hpPotion: false, weightFraction: MpPotionWeightFraction),
+            new DesiredItem(ItemType.Torch, count: 1),
+            new DesiredItem(ItemType.Scroll, shape: 1, count: 1)
+        };
     private DateTime _nextEquipCheck = DateTime.UtcNow;
     private DateTime _nextAttackTime = DateTime.UtcNow;
     private DateTime _nextPotionTime = DateTime.MinValue;
@@ -103,12 +116,21 @@ public class BaseAI
 
     protected virtual int GetItemScore(UserItem item, EquipmentSlot slot)
     {
-        int score = 0;
-        if (item.Info != null)
-            score += item.Info.Stats.Count;
-        if (item.AddedStats != null)
-            score += item.AddedStats.Count;
-        return score;
+        if (item.Info == null) return 0;
+
+        var stats = IsOffensiveSlot(slot) ? OffensiveStats : DefensiveStats;
+        if (stats.Length == 0)
+        {
+            int score = item.Info.Stats.Count;
+            if (item.AddedStats != null)
+                score += item.AddedStats.Count;
+            return score;
+        }
+
+        int total = 0;
+        foreach (var s in stats)
+            total += item.Info.Stats[s] + item.AddedStats[s];
+        return total;
     }
 
     private Point GetRandomPoint(PlayerAgents.Map.MapData map, Random random, Point origin, int radius, MirDirection? preferred)
@@ -571,7 +593,7 @@ public class BaseAI
         {
             reached = await Client.MoveWithinRangeAsync(location, npcId, Globals.DataRange, interactionType, WalkDelay, entry?.MapFile);
             if (!reached)
-                await Task.Delay(1000);
+                await Task.Delay(600);
         }
         if (!reached)
         {
