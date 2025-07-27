@@ -20,6 +20,7 @@ public sealed partial class GameClient
     private readonly MapExpRateMemoryBank _expRateMemory;
     private readonly NavDataManager _navDataManager;
     private readonly IAgentLogger? _logger;
+    private readonly CancellationTokenSource _cts = new();
     private CancellationTokenSource? _movementSaveCts;
     private CancellationTokenSource? _movementDeleteCts;
     public event Action? MovementEntryRemoved;
@@ -471,6 +472,8 @@ public sealed partial class GameClient
     public MapExpRateMemoryBank ExpRateMemory => _expRateMemory;
     public Func<UserItem, EquipmentSlot, int>? ItemScoreFunc { get; set; }
     public Func<IReadOnlyList<DesiredItem>>? DesiredItemsProvider { get; set; }
+    public CancellationToken CancellationToken => _cts.Token;
+    public bool Disconnected => _cts.IsCancellationRequested;
 
     private void ReportStatus()
     {
@@ -918,7 +921,7 @@ public sealed partial class GameClient
         _harvestTargetId = monster.Id;
         _harvestComplete = false;
 
-        while (!_harvestComplete)
+        while (!_harvestComplete && !Disconnected)
         {
             if (!HasFreeBagSpace() || GetCurrentBagWeight() >= GetMaxBagWeight())
                 break;
@@ -1604,7 +1607,7 @@ public sealed partial class GameClient
         int attempts = 0;
         int maxAttempts = Math.Max(1, 10_000 / Math.Max(1, delay)); // ~10 seconds worth of attempts
 
-        while (Functions.MaxDistance(CurrentLocation, target) > range && attempts < maxAttempts)
+        while (!Disconnected && Functions.MaxDistance(CurrentLocation, target) > range && attempts < maxAttempts)
         {
             var path = await MovementHelper.FindPathAsync(this, map, CurrentLocation, target, ignoreId, range);
             if (path.Count == 0)

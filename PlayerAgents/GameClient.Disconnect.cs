@@ -17,5 +17,6 @@ public sealed partial class GameClient
         _stream = null;
         try { _client?.Close(); } catch { }
         _client = null;
+        _cts.Cancel();
     }
 }

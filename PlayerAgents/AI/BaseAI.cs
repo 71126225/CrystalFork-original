@@ -792,7 +792,7 @@ public class BaseAI
         _stationarySince = DateTime.UtcNow;
         _lastMoveOrAttackTime = DateTime.UtcNow;
         _buyAttempted = false;
-        while (true)
+        while (!Client.Disconnected)
         {
             if (await HandleReviveAsync())
                 continue;

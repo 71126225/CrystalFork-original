@@ -96,29 +96,23 @@ public sealed class MapData
 
     public bool IsWalkable(int x, int y)
     {
-        _lock.EnterReadLock();
-        try
-        {
-            if (x < 0 || y < 0 || x >= Width || y >= Height) return false;
-            return Walkable[x, y];
-        }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
+        // Access the arrays without locking; reads are atomic and arrays are replaced
+        // in whole when reloaded.
+        var walk = Walkable;
+        int width = walk.GetLength(0);
+        int height = walk.GetLength(1);
+
+        if (x < 0 || y < 0 || x >= width || y >= height) return false;
+        return walk[x, y];
     }
 
     public byte GetDoorIndex(int x, int y)
     {
-        _lock.EnterReadLock();
-        try
-        {
-            if (x < 0 || y < 0 || x >= Width || y >= Height) return 0;
-            return Doors[x, y];
-        }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
+        var doors = Doors;
+        int width = doors.GetLength(0);
+        int height = doors.GetLength(1);
+
+        if (x < 0 || y < 0 || x >= width || y >= height) return 0;
+        return doors[x, y];
     }
 }
