@@ -6,9 +6,47 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using Shared;
+using PlayerAgents.Map;
 
 public sealed partial class GameClient
 {
+    private int ComputeNpcDistance(NpcEntry entry)
+    {
+        if (string.IsNullOrEmpty(_currentMapFile))
+            return int.MaxValue;
+
+        try
+        {
+            var targetMap = Path.Combine(MapManager.MapDirectory, entry.MapFile + ".map");
+            var obstacles = MovementHelper.BuildObstacles(this);
+            var path = PathFinder
+                .FindPathAsync(_movementMemory, _currentMapFile, _currentLocation,
+                    targetMap, new Point(entry.X, entry.Y), obstacles)
+                .GetAwaiter().GetResult();
+            return path.Count == 0 ? int.MaxValue : path.Count;
+        }
+        catch
+        {
+            return int.MaxValue;
+        }
+    }
+
+    private int GetNpcDistance(NpcEntry entry)
+    {
+        lock (_npcDistanceCache)
+        {
+            if (_npcDistanceCache.TryGetValue(entry, out var cached) &&
+                DateTime.UtcNow - cached.Time < NpcDistanceCacheDuration)
+                return cached.Distance;
+        }
+
+        int dist = ComputeNpcDistance(entry);
+        lock (_npcDistanceCache)
+        {
+            _npcDistanceCache[entry] = (dist, DateTime.UtcNow);
+        }
+        return dist;
+    }
     public bool TryFindNearestNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true)
     {
         id = 0;
@@ -18,18 +56,16 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             bool knows = e.SellItemTypes != null && e.SellItemTypes.Contains(type);
             bool unknown = e.CanSell &&
                 (e.SellItemTypes == null || !e.SellItemTypes.Contains(type)) &&
                 (e.CannotSellItemTypes == null || !e.CannotSellItemTypes.Contains(type));
             if (!knows && (!includeUnknowns || !unknown)) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -62,11 +98,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             bool knows = special ? (e.SpecialRepairItemTypes != null && e.SpecialRepairItemTypes.Contains(type))
                                  : (e.RepairItemTypes != null && e.RepairItemTypes.Contains(type));
             bool unknown = (special ? e.CanSpecialRepair : e.CanRepair) &&
@@ -74,7 +108,7 @@ public sealed partial class GameClient
                 ((special ? e.CannotSpecialRepairItemTypes : e.CannotRepairItemTypes) == null || !(special ? e.CannotSpecialRepairItemTypes : e.CannotRepairItemTypes)!.Contains(type));
             if (!knows && (!includeUnknowns || !unknown)) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -107,16 +141,14 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             bool knows = e.BuyItems != null && e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type);
             bool unknown = e.CanBuy && (e.BuyItems == null || !e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type));
             if (!knows && (!includeUnknowns || !unknown)) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -150,11 +182,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             var sells = new List<ItemType>();
             foreach (var t in types)
             {
@@ -165,7 +195,7 @@ public sealed partial class GameClient
             }
             if (sells.Count == 0) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -205,11 +235,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             var sells = new List<ItemType>();
             foreach (var t in types)
             {
@@ -222,7 +250,7 @@ public sealed partial class GameClient
             }
             if (sells.Count == 0) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -262,11 +290,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-        string map = Path.GetFileNameWithoutExtension(_currentMapFile);
 
         foreach (var e in _npcMemory.GetAll())
         {
-            if (e.MapFile != map) continue;
             var repairs = new List<ItemType>();
             foreach (var t in types)
             {
@@ -280,7 +306,7 @@ public sealed partial class GameClient
             }
             if (repairs.Count == 0) continue;
 
-            int dist = Functions.MaxDistance(_currentLocation, new Point(e.X, e.Y));
+            int dist = GetNpcDistance(e);
             if (dist < bestDist)
             {
                 bestDist = dist;
