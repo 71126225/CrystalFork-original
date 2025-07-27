@@ -1326,7 +1326,6 @@ public sealed partial class GameClient
 
     internal async void StartNpcInteraction(uint id, NpcEntry entry)
     {
-        StopMovement();
         _dialogNpcId = id;
         _npcInteractionStart = DateTime.UtcNow;
         _npcActionTasks.Clear();
@@ -1340,7 +1339,6 @@ public sealed partial class GameClient
 
     internal void BeginTransaction(uint id, NpcEntry entry)
     {
-        StopMovement();
         _dialogNpcId = id;
         _npcInteractionStart = DateTime.UtcNow;
         _recentNpcInteractions[(entry.Name, entry.MapFile, entry.X, entry.Y)] = DateTime.UtcNow;
@@ -1616,32 +1614,82 @@ public sealed partial class GameClient
         _npcMemory.RemoveNpc(entry);
     }
 
-    public async Task<bool> MoveWithinRangeAsync(Point target, uint ignoreId, int range, NpcInteractionType interactionType, int delay)
+    public async Task<bool> MoveWithinRangeAsync(Point target, uint ignoreId, int range, NpcInteractionType interactionType, int delay, string? targetMap = null)
     {
+        async Task<bool> MoveWithinMapAsync(Point dest, int destRange)
+        {
+            var localMap = CurrentMap;
+            if (localMap == null) return false;
+
+            int attempts = 0;
+            int maxAttempts = Math.Max(1, 10_000 / Math.Max(1, delay));
+
+            while (!Disconnected && Functions.MaxDistance(CurrentLocation, dest) > destRange && attempts < maxAttempts)
+            {
+                var p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
+                if (p.Count == 0)
+                    return false;
+
+                await MovementHelper.MoveAlongPathAsync(this, p, dest);
+                await Task.Delay(delay);
+
+                localMap = CurrentMap;
+                if (localMap == null)
+                    return false;
+
+                attempts++;
+            }
+
+            return Functions.MaxDistance(CurrentLocation, dest) <= destRange;
+        }
+
         var map = CurrentMap;
         if (map == null) return false;
 
         CurrentNpcInteraction = interactionType;
-        int attempts = 0;
-        int maxAttempts = Math.Max(1, 10_000 / Math.Max(1, delay)); // ~10 seconds worth of attempts
 
-        while (!Disconnected && Functions.MaxDistance(CurrentLocation, target) > range && attempts < maxAttempts)
+        string destMap = targetMap ?? Path.GetFileNameWithoutExtension(_currentMapFile);
+        if (!string.Equals(Path.GetFileNameWithoutExtension(_currentMapFile), destMap, StringComparison.OrdinalIgnoreCase))
         {
-            var path = await MovementHelper.FindPathAsync(this, map, CurrentLocation, target, ignoreId, range);
-            if (path.Count == 0)
+            var destPath = Path.Combine(MapManager.MapDirectory, destMap + ".map");
+            var travel = MovementHelper.FindTravelPath(this, destPath);
+            if (travel == null)
+            {
+                CurrentNpcInteraction = NpcInteractionType.General;
                 return false;
+            }
 
-            await MovementHelper.MoveAlongPathAsync(this, path, target);
-            await Task.Delay(delay);
+            foreach (var step in travel)
+            {
+                if (!await MoveWithinMapAsync(new Point(step.SourceX, step.SourceY), 0))
+                {
+                    CurrentNpcInteraction = NpcInteractionType.General;
+                    return false;
+                }
+
+                int wait = 0;
+                while (!Disconnected && Path.GetFileNameWithoutExtension(_currentMapFile) == step.SourceMap && wait < 40)
+                {
+                    await Task.Delay(50);
+                    wait++;
+                }
+
+                if (Path.GetFileNameWithoutExtension(_currentMapFile) != step.DestinationMap)
+                {
+                    CurrentNpcInteraction = NpcInteractionType.General;
+                    return false;
+                }
+            }
 
             map = CurrentMap;
             if (map == null)
+            {
+                CurrentNpcInteraction = NpcInteractionType.General;
                 return false;
-
-            attempts++;
+            }
         }
 
-        bool success = Functions.MaxDistance(CurrentLocation, target) <= range;
+        bool success = await MoveWithinMapAsync(target, range);
         CurrentNpcInteraction = NpcInteractionType.General;
         return success;
     }

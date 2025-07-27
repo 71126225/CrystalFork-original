@@ -313,8 +313,8 @@ public sealed partial class GameClient
         var interaction = _npcInteraction!;
         var page = await interaction.BeginAsync();
         string[] sellKeys = { "@BUYSELLNEW", "@BUYSELL", "@SELL" };
-        var sellKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => sellKeys.Contains(k.ToUpper())) ?? "@SELL";
-        if (sellKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
+        var sellKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => sellKeys.Contains(k.ToUpper()));
+        if (sellKey == null || sellKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
         {
             EndTransaction();
             return;

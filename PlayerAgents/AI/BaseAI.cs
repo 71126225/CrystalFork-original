@@ -560,7 +560,7 @@ public class BaseAI
         bool reached = false;
         for (int attempt = 0; attempt < 2 && !reached; attempt++)
         {
-            reached = await Client.MoveWithinRangeAsync(location, npcId, Globals.DataRange, interactionType, WalkDelay);
+            reached = await Client.MoveWithinRangeAsync(location, npcId, Globals.DataRange, interactionType, WalkDelay, entry?.MapFile);
             if (!reached)
                 await Task.Delay(1000);
         }
@@ -634,7 +634,7 @@ public class BaseAI
         while (sellGroups.Count > 0)
         {
             var types = sellGroups.Keys.ToList();
-            if (!Client.TryFindNearestNpc(types, out var npcId, out var loc, out var entry, out var matchedTypes, includeUnknowns: false))
+            if (!Client.TryFindNearestNpc(types, out var npcId, out var loc, out var entry, out var matchedTypes))
                 break;
 
             int count = matchedTypes.Sum(t => sellGroups[t].Sum(x => x.sell));
@@ -667,7 +667,7 @@ public class BaseAI
         var equipment = Client.Equipment;
         if (equipment == null) return;
 
-        var toRepair = equipment.Where(i => i != null && i.Info != null && i.CurrentDura < i.MaxDura).ToList();
+        var toRepair = equipment.Where(i => i != null && i.Info != null && i.Info.Type != ItemType.Torch && i.CurrentDura < i.MaxDura).ToList();
         if (toRepair.Count == 0) return;
 
         bool urgent = toRepair.Any(i => i.MaxDura > 0 && i.CurrentDura <= i.MaxDura * 0.05);
@@ -680,7 +680,7 @@ public class BaseAI
         var types = toRepair.Select(i => i!.Info!.Type).Distinct().ToList();
         while (types.Count > 0)
         {
-            if (!Client.TryFindNearestRepairNpc(types, out var npcId, out var loc, out var entry, out var matched, includeUnknowns: false))
+            if (!Client.TryFindNearestRepairNpc(types, out var npcId, out var loc, out var entry, out var matched))
                 break;
 
             if (entry != null)
@@ -773,7 +773,7 @@ public class BaseAI
         {
             while (neededTypes.Count > 0)
             {
-                if (!Client.TryFindNearestBuyNpc(neededTypes, out var npcId, out var loc, out var entry, out var matched, includeUnknowns: false))
+                if (!Client.TryFindNearestBuyNpc(neededTypes, out var npcId, out var loc, out var entry, out var matched))
                     break;
 
                 if (entry != null)
