@@ -1472,14 +1472,17 @@ public sealed partial class GameClient
         bool needBuyCheck = false;
         bool needSellCheck = false;
         bool needRepairCheck = false;
+        bool needSpecialRepairCheck = false;
 
         bool hasBuy = keys.Overlaps(new[] { "@BUY", "@BUYSELL", "@BUYNEW", "@BUYSELLNEW", "@PEARLBUY" });
         bool hasSell = keys.Overlaps(new[] { "@SELL", "@BUYSELL", "@BUYSELLNEW" });
-        bool hasRepair = keys.Overlaps(new[] { "@REPAIR", "@SREPAIR" });
+        bool hasRepair = keys.Contains("@REPAIR");
+        bool hasSpecialRepair = keys.Contains("@SREPAIR");
 
         string? buyKey = null;
         string? sellKey = null;
         string? repairKey = null;
+        string? specialRepairKey = null;
 
         if (hasBuy)
         {
@@ -1528,22 +1531,28 @@ public sealed partial class GameClient
                 entry.CanRepair = true;
                 changed = true;
             }
-            string[] repairKeys = { "@SREPAIR", "@REPAIR" };
-            repairKey = keyList.FirstOrDefault(k => repairKeys.Contains(k.ToUpper())) ?? "@REPAIR";
-            bool specialRepair = repairKey.Equals("@SREPAIR", StringComparison.OrdinalIgnoreCase);
-            if (specialRepair && !entry.CanSpecialRepair)
+            repairKey = keyList.FirstOrDefault(k => k.Equals("@REPAIR", StringComparison.OrdinalIgnoreCase)) ?? "@REPAIR";
+            needRepairCheck = HasUnknownRepairTypes(entry);
+            if (needRepairCheck && repairKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
+            {
+                _skipNextGoods = true;
+                repairKey = null;
+            }
+        }
+
+        if (hasSpecialRepair)
+        {
+            if (!entry.CanSpecialRepair)
             {
                 entry.CanSpecialRepair = true;
                 changed = true;
             }
-            needRepairCheck = HasUnknownRepairTypes(entry, specialRepair);
-            if (needRepairCheck)
+            specialRepairKey = keyList.FirstOrDefault(k => k.Equals("@SREPAIR", StringComparison.OrdinalIgnoreCase)) ?? "@SREPAIR";
+            needSpecialRepairCheck = HasUnknownRepairTypes(entry, true);
+            if (needSpecialRepairCheck && specialRepairKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
             {
-                if (repairKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
-                {
-                    _skipNextGoods = true;
-                    repairKey = null;
-                }
+                _skipNextGoods = true;
+                specialRepairKey = null;
             }
         }
 
@@ -1559,6 +1568,11 @@ public sealed partial class GameClient
         {
             _npcActionTasks.Enqueue((repairKey, CreateRepairTask(repairKey)));
             _npcActionTasks.Enqueue((repairKey, CreateCheckRepairTask(repairKey)));
+        }
+        if (specialRepairKey != null)
+        {
+            _npcActionTasks.Enqueue((specialRepairKey, CreateRepairTask(specialRepairKey)));
+            _npcActionTasks.Enqueue((specialRepairKey, CreateCheckRepairTask(specialRepairKey)));
         }
         if (buyKey != null)
         {
