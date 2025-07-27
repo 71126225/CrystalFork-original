@@ -161,6 +161,7 @@ public sealed partial class GameClient
     private readonly Dictionary<ulong, TaskCompletionSource<S.SellItem>> _sellItemTcs = new();
     private readonly Dictionary<ulong, TaskCompletionSource<bool>> _repairItemTcs = new();
     private const int NpcResponseDebounceMs = 100;
+    private const int ExplorationLevelMargin = 5;
     private readonly Dictionary<(string name, string map, int x, int y), DateTime> _recentNpcInteractions = new();
 
     private List<UserItem>? _lastNpcGoods;
@@ -685,6 +686,11 @@ public sealed partial class GameClient
         return null;
     }
 
+    /// <summary>
+    /// Pick a random map that we haven't recorded exp for at the current level.
+    /// Maps that only have records from players far above our level are skipped
+    /// so lower level characters don't wander into extremely dangerous areas.
+    /// </summary>
     public string? GetRandomExplorationMap()
     {
         if (_playerClass == null) return null;
@@ -694,11 +700,23 @@ public sealed partial class GameClient
         foreach (var m in _movementMemory.GetKnownMaps())
             allMaps.Add(m);
 
+        // Build a lookup of the minimum recorded level for each map
+        var minLevels = entries
+            .GroupBy(e => e.MapFile)
+            .ToDictionary(g => g.Key, g => g.Min(e => e.Level));
+
         var known = new HashSet<string>(entries
             .Where(e => e.Class == _playerClass.Value && e.Level == _level)
             .Select(e => e.MapFile));
 
-        var candidates = allMaps.Where(m => !known.Contains(m)).ToList();
+        var candidates = allMaps.Where(m =>
+        {
+            if (known.Contains(m)) return false;
+            if (minLevels.TryGetValue(m, out var min))
+                return min <= _level + ExplorationLevelMargin; // skip very high level maps
+            return true; // keep if we have no data at all
+        }).ToList();
+
         if (candidates.Count == 0) return null;
         return candidates[_random.Next(candidates.Count)];
     }
