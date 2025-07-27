@@ -97,6 +97,7 @@ public class BaseAI
     private bool _repairingItems;
     private bool _buyingItems;
     private bool _buyAttempted;
+    private bool _refreshInventory;
     private HashSet<ItemType> _pendingBuyTypes = new();
 
     protected virtual int GetItemScore(UserItem item, EquipmentSlot slot)
@@ -425,6 +426,7 @@ public class BaseAI
             if (selected != _currentBestMap)
             {
                 _currentBestMap = selected;
+                _refreshInventory = true;
                 await SellRepairAndBuyAsync();
                 // force path recalculation if destination changes or interval lapses
                 _travelPath = null;
@@ -808,6 +810,31 @@ public class BaseAI
         await HandleBuyingItemsAsync();
     }
 
+    private bool InventoryNeedsRefresh()
+    {
+        if (_pendingBuyTypes.Count > 0)
+            return true;
+
+        var equipment = Client.Equipment;
+        if (equipment != null && equipment.Any(i => i != null && i.Info != null && i.Info.Type != ItemType.Torch && i.CurrentDura < i.MaxDura))
+            return true;
+
+        var inventory = Client.Inventory;
+        if (inventory != null)
+        {
+            var items = inventory.Where(i => i != null && i.Info != null).ToList();
+            var keepCounts = GetItemKeepCounts(items);
+            if (items.Any(i =>
+            {
+                ushort keep = keepCounts.TryGetValue(i, out var k) ? k : (ushort)0;
+                return i.Count > keep;
+            }))
+                return true;
+        }
+
+        return false;
+    }
+
     public virtual async Task RunAsync()
     {
         Point current;
@@ -831,7 +858,16 @@ public class BaseAI
             }
 
             Client.ProcessMapExpRateInterval();
-            await HandleBuyingItemsAsync();
+            if (_refreshInventory)
+            {
+                await SellRepairAndBuyAsync();
+                if (!InventoryNeedsRefresh())
+                    _refreshInventory = false;
+            }
+            else
+            {
+                await HandleBuyingItemsAsync();
+            }
             await ProcessBestMapAsync();
             UpdateTravelDestination();
             bool traveling = _travelPath != null && DateTime.UtcNow >= _travelPauseUntil;
