@@ -538,15 +538,21 @@ public class BaseAI
             if (desired.Count.HasValue)
             {
                 int remaining = desired.Count.Value;
-                foreach (var item in matching.OrderByDescending(i => i.Weight))
+                if (equipment != null)
+                    remaining -= equipment.Count(i => i != null && MatchesDesiredItem(i!, desired));
+
+                if (remaining > 0)
                 {
-                    if (remaining <= 0) break;
-                    ushort already = keep.TryGetValue(item, out var val) ? val : (ushort)0;
-                    int available = item.Count - already;
-                    if (available <= 0) continue;
-                    ushort amount = (ushort)Math.Min(available, remaining);
-                    keep[item] = (ushort)(already + amount);
-                    remaining -= amount;
+                    foreach (var item in matching.OrderByDescending(i => i.Weight))
+                    {
+                        if (remaining <= 0) break;
+                        ushort already = keep.TryGetValue(item, out var val) ? val : (ushort)0;
+                        int available = item.Count - already;
+                        if (available <= 0) continue;
+                        ushort amount = (ushort)Math.Min(available, remaining);
+                        keep[item] = (ushort)(already + amount);
+                        remaining -= amount;
+                    }
                 }
             }
 
@@ -754,8 +760,13 @@ public class BaseAI
         if (inventory == null) return false;
         var matching = inventory.Where(i => i != null && MatchesDesiredItem(i!, desired)).ToList();
 
+        int count = matching.Count;
+        var equipment = Client.Equipment;
+        if (equipment != null && desired.Count.HasValue)
+            count += equipment.Count(i => i != null && MatchesDesiredItem(i!, desired));
+
         if (desired.Count.HasValue)
-            return matching.Count < desired.Count.Value;
+            return count < desired.Count.Value;
 
         if (desired.WeightFraction > 0)
         {
