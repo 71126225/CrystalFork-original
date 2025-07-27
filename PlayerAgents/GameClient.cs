@@ -164,10 +164,6 @@ public sealed partial class GameClient
     private const int ExplorationLevelMargin = 5;
     private readonly Dictionary<(string name, string map, int x, int y), DateTime> _recentNpcInteractions = new();
 
-    // Cache travel distance to NPCs to avoid repeated expensive pathfinding
-    private readonly Dictionary<NpcEntry, (int Distance, DateTime Time)> _npcDistanceCache = new();
-    private static readonly TimeSpan NpcDistanceCacheDuration = TimeSpan.FromSeconds(5);
-
     private List<UserItem>? _lastNpcGoods;
     private PanelType _lastNpcGoodsType;
 
