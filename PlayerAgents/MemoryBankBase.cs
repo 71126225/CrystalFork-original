@@ -9,6 +9,8 @@ public abstract class MemoryBankBase<TEntry>
 {
     private readonly string _path;
     private DateTime _lastWriteTime;
+    private DateTime _nextSaveTime = DateTime.MinValue;
+    protected virtual TimeSpan SaveInterval => TimeSpan.FromSeconds(5);
     protected readonly List<TEntry> _entries = new();
     protected readonly object _lock = new();
     private readonly Mutex _fileMutex;
@@ -69,6 +71,11 @@ public abstract class MemoryBankBase<TEntry>
 
     protected void Save()
     {
+        if (DateTime.UtcNow < _nextSaveTime)
+            return;
+
+        _nextSaveTime = DateTime.UtcNow + SaveInterval;
+
         string json;
         lock (_lock)
         {

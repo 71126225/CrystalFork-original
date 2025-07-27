@@ -33,7 +33,12 @@ public sealed partial class GameClient
         dist += Functions.MaxDistance(current, new Point(entry.X, entry.Y));
         return dist;
     }
-    public bool TryFindNearestNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true)
+
+    private bool TryFindNearestNpc(
+        Func<NpcEntry, bool> match,
+        out uint id,
+        out Point location,
+        out NpcEntry? entry)
     {
         id = 0;
         location = default;
@@ -42,14 +47,9 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-
         foreach (var e in _npcMemory.GetAll())
         {
-            bool knows = e.SellItemTypes != null && e.SellItemTypes.Contains(type);
-            bool unknown = e.CanSell &&
-                (e.SellItemTypes == null || !e.SellItemTypes.Contains(type)) &&
-                (e.CannotSellItemTypes == null || !e.CannotSellItemTypes.Contains(type));
-            if (!knows && (!includeUnknowns || !unknown)) continue;
+            if (!match(e)) continue;
 
             int dist = GetNpcTravelDistance(e);
             if (dist < bestDist)
@@ -60,106 +60,18 @@ public sealed partial class GameClient
             }
         }
 
-        if (entry != null)
-        {
-            foreach (var kv in _npcEntries)
-            {
-                if (kv.Value == entry)
-                {
-                    id = kv.Key;
-                    break;
-                }
-            }
-        }
+        if (entry != null && _npcEntryIds.TryGetValue(entry, out var nid))
+            id = nid;
 
         return entry != null;
     }
 
-    public bool TryFindNearestRepairNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true, bool special = false)
-    {
-        id = 0;
-        location = default;
-        entry = null;
-        if (string.IsNullOrEmpty(_currentMapFile))
-            return false;
-
-        int bestDist = int.MaxValue;
-
-        foreach (var e in _npcMemory.GetAll())
-        {
-            if (!e.CheckedMerchantKeys) continue;
-            bool knows = special ? (e.SpecialRepairItemTypes != null && e.SpecialRepairItemTypes.Contains(type))
-                                 : (e.RepairItemTypes != null && e.RepairItemTypes.Contains(type));
-            bool unknown = (special ? e.CanSpecialRepair : e.CanRepair) &&
-                ((special ? e.SpecialRepairItemTypes : e.RepairItemTypes) == null || !(special ? e.SpecialRepairItemTypes : e.RepairItemTypes)!.Contains(type)) &&
-                ((special ? e.CannotSpecialRepairItemTypes : e.CannotRepairItemTypes) == null || !(special ? e.CannotSpecialRepairItemTypes : e.CannotRepairItemTypes)!.Contains(type));
-            if (!knows && (!includeUnknowns || !unknown)) continue;
-
-            int dist = GetNpcTravelDistance(e);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                entry = e;
-                location = new Point(e.X, e.Y);
-            }
-        }
-
-        if (entry != null)
-        {
-            foreach (var kv in _npcEntries)
-            {
-                if (kv.Value == entry)
-                {
-                    id = kv.Key;
-                    break;
-                }
-            }
-        }
-
-        return entry != null;
-    }
-
-    public bool TryFindNearestBuyNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true)
-    {
-        id = 0;
-        location = default;
-        entry = null;
-        if (string.IsNullOrEmpty(_currentMapFile))
-            return false;
-
-        int bestDist = int.MaxValue;
-
-        foreach (var e in _npcMemory.GetAll())
-        {
-            bool knows = e.BuyItems != null && e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type);
-            bool unknown = e.CanBuy && (e.BuyItems == null || !e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type));
-            if (!knows && (!includeUnknowns || !unknown)) continue;
-
-            int dist = GetNpcTravelDistance(e);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                entry = e;
-                location = new Point(e.X, e.Y);
-            }
-        }
-
-        if (entry != null)
-        {
-            foreach (var kv in _npcEntries)
-            {
-                if (kv.Value == entry)
-                {
-                    id = kv.Key;
-                    break;
-                }
-            }
-        }
-
-        return entry != null;
-    }
-
-    public bool TryFindNearestBuyNpc(IEnumerable<ItemType> types, out uint id, out Point location, out NpcEntry? entry, out List<ItemType> matchedTypes, bool includeUnknowns = true)
+    private bool TryFindNearestNpc(
+        Func<NpcEntry, List<ItemType>> match,
+        out uint id,
+        out Point location,
+        out NpcEntry? entry,
+        out List<ItemType> matchedTypes)
     {
         id = 0;
         location = default;
@@ -169,8 +81,65 @@ public sealed partial class GameClient
             return false;
 
         int bestDist = int.MaxValue;
-
         foreach (var e in _npcMemory.GetAll())
+        {
+            var types = match(e);
+            if (types.Count == 0) continue;
+
+            int dist = GetNpcTravelDistance(e);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                entry = e;
+                location = new Point(e.X, e.Y);
+                matchedTypes = types;
+            }
+        }
+
+        if (entry != null && _npcEntryIds.TryGetValue(entry, out var nid))
+            id = nid;
+
+        return entry != null;
+    }
+    public bool TryFindNearestNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true)
+    {
+        return TryFindNearestNpc(e =>
+        {
+            bool knows = e.SellItemTypes != null && e.SellItemTypes.Contains(type);
+            bool unknown = e.CanSell &&
+                (e.SellItemTypes == null || !e.SellItemTypes.Contains(type)) &&
+                (e.CannotSellItemTypes == null || !e.CannotSellItemTypes.Contains(type));
+            return knows || (includeUnknowns && unknown);
+        }, out id, out location, out entry);
+    }
+
+    public bool TryFindNearestRepairNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true, bool special = false)
+    {
+        return TryFindNearestNpc(e =>
+        {
+            if (!e.CheckedMerchantKeys) return false;
+            bool knows = special ? (e.SpecialRepairItemTypes != null && e.SpecialRepairItemTypes.Contains(type))
+                                 : (e.RepairItemTypes != null && e.RepairItemTypes.Contains(type));
+            bool unknown = (special ? e.CanSpecialRepair : e.CanRepair) &&
+                ((special ? e.SpecialRepairItemTypes : e.RepairItemTypes) == null || !(special ? e.SpecialRepairItemTypes : e.RepairItemTypes)!.Contains(type)) &&
+                ((special ? e.CannotSpecialRepairItemTypes : e.CannotRepairItemTypes) == null || !(special ? e.CannotSpecialRepairItemTypes : e.CannotRepairItemTypes)!.Contains(type));
+            return knows || (includeUnknowns && unknown);
+        }, out id, out location, out entry);
+    }
+
+    public bool TryFindNearestBuyNpc(ItemType type, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true)
+    {
+        return TryFindNearestNpc(e =>
+        {
+            bool knows = e.BuyItems != null && e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type);
+            bool unknown = e.CanBuy && (e.BuyItems == null || !e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && info.Type == type));
+            return knows || (includeUnknowns && unknown);
+        }, out id, out location, out entry);
+    }
+
+    public bool TryFindNearestBuyNpc(IEnumerable<ItemType> types, out uint id, out Point location, out NpcEntry? entry, out List<ItemType> matchedTypes, bool includeUnknowns = true)
+    {
+        return TryFindNearestNpc(e =>
         {
             var sells = new List<ItemType>();
             foreach (var t in types)
@@ -180,50 +149,13 @@ public sealed partial class GameClient
                 if (knows || (includeUnknowns && unknown))
                     sells.Add(t);
             }
-            if (sells.Count == 0) continue;
-
-            int dist = GetNpcTravelDistance(e);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                entry = e;
-                location = new Point(e.X, e.Y);
-                matchedTypes = sells;
-            }
-        }
-
-        if (entry != null)
-        {
-            foreach (var kv in _npcEntries)
-            {
-                var e = kv.Value;
-                if (ReferenceEquals(e, entry) ||
-                    (e.Name == entry.Name &&
-                     e.MapFile == entry.MapFile &&
-                     e.X == entry.X &&
-                     e.Y == entry.Y))
-                {
-                    id = kv.Key;
-                    break;
-                }
-            }
-        }
-
-        return entry != null;
+            return sells;
+        }, out id, out location, out entry, out matchedTypes);
     }
 
     public bool TryFindNearestNpc(IEnumerable<ItemType> types, out uint id, out Point location, out NpcEntry? entry, out List<ItemType> matchedTypes, bool includeUnknowns = true)
     {
-        id = 0;
-        location = default;
-        entry = null;
-        matchedTypes = new List<ItemType>();
-        if (string.IsNullOrEmpty(_currentMapFile))
-            return false;
-
-        int bestDist = int.MaxValue;
-
-        foreach (var e in _npcMemory.GetAll())
+        return TryFindNearestNpc(e =>
         {
             var sells = new List<ItemType>();
             foreach (var t in types)
@@ -235,52 +167,15 @@ public sealed partial class GameClient
                 if (knows || (includeUnknowns && unknown))
                     sells.Add(t);
             }
-            if (sells.Count == 0) continue;
-
-            int dist = GetNpcTravelDistance(e);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                entry = e;
-                location = new Point(e.X, e.Y);
-                matchedTypes = sells;
-            }
-        }
-
-        if (entry != null)
-        {
-            foreach (var kv in _npcEntries)
-            {
-                var e = kv.Value;
-                if (ReferenceEquals(e, entry) ||
-                    (e.Name == entry.Name &&
-                     e.MapFile == entry.MapFile &&
-                     e.X == entry.X &&
-                     e.Y == entry.Y))
-                {
-                    id = kv.Key;
-                    break;
-                }
-            }
-        }
-
-        return entry != null;
+            return sells;
+        }, out id, out location, out entry, out matchedTypes);
     }
 
     public bool TryFindNearestRepairNpc(IEnumerable<ItemType> types, out uint id, out Point location, out NpcEntry? entry, out List<ItemType> matchedTypes, bool includeUnknowns = true, bool special = false)
     {
-        id = 0;
-        location = default;
-        entry = null;
-        matchedTypes = new List<ItemType>();
-        if (string.IsNullOrEmpty(_currentMapFile))
-            return false;
-
-        int bestDist = int.MaxValue;
-
-        foreach (var e in _npcMemory.GetAll())
+        return TryFindNearestNpc(e =>
         {
-            if (!e.CheckedMerchantKeys) continue;
+            if (!e.CheckedMerchantKeys) return new List<ItemType>();
             var repairs = new List<ItemType>();
             foreach (var t in types)
             {
@@ -292,31 +187,8 @@ public sealed partial class GameClient
                 if (knows || (includeUnknowns && unknown))
                     repairs.Add(t);
             }
-            if (repairs.Count == 0) continue;
-
-            int dist = GetNpcTravelDistance(e);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                entry = e;
-                location = new Point(e.X, e.Y);
-                matchedTypes = repairs;
-            }
-        }
-
-        if (entry != null)
-        {
-            foreach (var kv in _npcEntries)
-            {
-                if (kv.Value == entry)
-                {
-                    id = kv.Key;
-                    break;
-                }
-            }
-        }
-
-        return entry != null;
+            return repairs;
+        }, out id, out location, out entry, out matchedTypes);
     }
 
     public async Task SellItemsToNpcAsync(uint npcId, IReadOnlyList<(UserItem item, ushort count)> items)
@@ -511,18 +383,8 @@ public sealed partial class GameClient
         int waited = 0;
         while (waited < timeoutMs)
         {
-            foreach (var kv in _npcEntries)
-            {
-                var e = kv.Value;
-                if (ReferenceEquals(e, entry) ||
-                    (e.Name == entry.Name &&
-                     e.MapFile == entry.MapFile &&
-                     e.X == entry.X &&
-                     e.Y == entry.Y))
-                {
-                    return kv.Key;
-                }
-            }
+            if (_npcEntryIds.TryGetValue(entry, out var id))
+                return id;
 
             await Task.Delay(50);
             waited += 50;

@@ -242,6 +242,7 @@ public sealed partial class GameClient
                     var mapId = Path.GetFileNameWithoutExtension(_currentMapFile);
                     var entry = _npcMemory.AddNpc(on.Name, mapId, on.Location);
                     _npcEntries[on.ObjectID] = entry;
+                    _npcEntryIds[entry] = on.ObjectID;
 
                     foreach (var kv in _recentNpcInteractions.ToList())
                         if (DateTime.UtcNow - kv.Value >= TimeSpan.FromSeconds(10))
