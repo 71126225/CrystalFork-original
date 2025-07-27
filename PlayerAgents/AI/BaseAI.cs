@@ -19,6 +19,7 @@ public class BaseAI
     private List<Point>? _currentRoamPath;
     private List<Point>? _lostTargetPath;
     private DateTime _nextPathFindTime = DateTime.MinValue;
+    private MirDirection? _lastRoamDirection;
 
 
     protected virtual TimeSpan TargetSwitchInterval => TimeSpan.FromSeconds(3);
@@ -51,6 +52,7 @@ public class BaseAI
         _travelPath = null;
         _currentRoamPath = null;
         _nextPathFindTime = DateTime.MinValue;
+        _lastRoamDirection = null;
     }
 
     private void OnExpRateSaved(double rate)
@@ -107,8 +109,24 @@ public class BaseAI
         return score;
     }
 
-    private Point GetRandomPoint(PlayerAgents.Map.MapData map, Random random, Point origin, int radius)
+    private Point GetRandomPoint(PlayerAgents.Map.MapData map, Random random, Point origin, int radius, MirDirection? preferred)
     {
+        if (preferred == null)
+            return MovementHelper.GetRandomPoint(Client, map, random, origin, radius);
+
+        const int attempts = 20;
+        var obstacles = MovementHelper.BuildObstacles(Client);
+
+        for (int i = 0; i < attempts; i++)
+        {
+            var dir = Functions.ShiftDirection(preferred.Value, random.Next(-1, 2));
+            int distance = random.Next(1, radius + 1);
+            var candidate = Functions.PointMove(origin, dir, distance);
+
+            if (map.IsWalkable(candidate.X, candidate.Y) && !obstacles.Contains(candidate))
+                return candidate;
+        }
+
         return MovementHelper.GetRandomPoint(Client, map, random, origin, radius);
     }
 
@@ -322,6 +340,7 @@ public class BaseAI
         {
             _travelPath = null;
             _searchDestination = null;
+            _lastRoamDirection = null;
             _travelPauseUntil = DateTime.UtcNow + TimeSpan.FromSeconds(10);
             _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromSeconds(10);
             return Task.FromResult(false);
@@ -331,6 +350,7 @@ public class BaseAI
         {
             _travelPath = null;
             _searchDestination = null;
+            _lastRoamDirection = null;
             return Task.FromResult(true);
         }
 
@@ -347,6 +367,7 @@ public class BaseAI
         {
             _travelPath = null;
             _searchDestination = null;
+            _lastRoamDirection = null;
             Client.UpdateAction("roaming...");
             return;
         }
@@ -361,6 +382,7 @@ public class BaseAI
             {
                 _travelPath = null;
                 _searchDestination = null;
+                _lastRoamDirection = null;
                 Client.UpdateAction("roaming...");
                 return;
             }
@@ -370,6 +392,7 @@ public class BaseAI
         {
             _travelPath = null;
             _searchDestination = null;
+            _lastRoamDirection = null;
             Client.UpdateAction("roaming...");
             return;
         }
@@ -380,6 +403,7 @@ public class BaseAI
             _searchDestination = dest;
             _currentRoamPath = null;
             _nextPathFindTime = DateTime.MinValue;
+            _lastRoamDirection = null;
         }
     }
 
@@ -1015,7 +1039,8 @@ public class BaseAI
                         Functions.MaxDistance(current, _searchDestination.Value) <= 1 ||
                         !map.IsWalkable(_searchDestination.Value.X, _searchDestination.Value.Y))
                     {
-                        _searchDestination = GetRandomPoint(map, Random, current, 50);
+                        _searchDestination = GetRandomPoint(map, Random, current, 50, _lastRoamDirection);
+                        _lastRoamDirection = Functions.DirectionFromPoint(current, _searchDestination.Value);
                         _currentRoamPath = null;
                         _nextPathFindTime = DateTime.MinValue;
                         Client.Log($"No targets nearby, searching at {_searchDestination.Value.X}, {_searchDestination.Value.Y}");
@@ -1031,6 +1056,7 @@ public class BaseAI
                             {
                                 _currentRoamPath = null;
                                 _searchDestination = null;
+                                _lastRoamDirection = null;
                                 _nextPathFindTime = DateTime.UtcNow + FailedPathFindDelay;
                                 await Task.Delay(WalkDelay);
                                 continue;
@@ -1045,6 +1071,7 @@ public class BaseAI
                         {
                             _currentRoamPath = null;
                             _searchDestination = null;
+                            _lastRoamDirection = null;
                             _nextPathFindTime = DateTime.UtcNow + FailedPathFindDelay;
                         }
                         else if (_currentRoamPath.Count <= 1)
@@ -1067,6 +1094,7 @@ public class BaseAI
                                 _travelPath = null;
                                 _searchDestination = null;
                                 _currentRoamPath = null;
+                                _lastRoamDirection = null;
                                 _travelPauseUntil = DateTime.UtcNow + TimeSpan.FromSeconds(10);
                                 _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromSeconds(10);
                                 traveling = false;
