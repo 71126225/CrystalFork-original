@@ -257,6 +257,7 @@ public class BaseAI
                     Client.Log($"Used {name}");
                     _nextPotionTime = DateTime.UtcNow + TimeSpan.FromSeconds(1);
                     _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
+                    _refreshInventory = true;
                     return;
                 }
             }
@@ -1429,6 +1430,7 @@ public class BaseAI
         {
             await Client.TownReviveAsync();
             _sentRevive = true;
+            _refreshInventory = true;
         }
         await Task.Delay(WalkDelay);
         if (!Client.Dead) _sentRevive = false;
