@@ -427,10 +427,7 @@ public sealed partial class GameClient
             case S.GainedItem gi:
                 Bind(gi.Item);
                 UserItem? invItem = null;
-                if (_inventory != null)
-                {
-                    invItem = AddItem(gi.Item);
-                }
+                invItem = AddItem(gi.Item);
                 _lastPickedItem = invItem ?? gi.Item;
                 if (gi.Item.Info != null)
                     Log($"Gained item: {gi.Item.Info.FriendlyName}");

@@ -262,8 +262,12 @@ public sealed partial class GameClient
         if (_inventory == null) return false;
         var matching = _inventory.Where(i => i != null && MatchesDesiredItem(i, desired)).ToList();
 
+        int count = matching.Count;
+        if (_equipment != null && desired.Count.HasValue)
+            count += _equipment.Count(i => i != null && MatchesDesiredItem(i!, desired));
+
         if (desired.Count.HasValue)
-            return matching.Count < desired.Count.Value;
+            return count < desired.Count.Value;
 
         if (desired.WeightFraction > 0)
         {

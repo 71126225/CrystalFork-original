@@ -222,6 +222,7 @@ public sealed partial class GameClient
         var sellKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => sellKeys.Contains(k.ToUpper()));
         if (sellKey == null || sellKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
         {
+            Log($"Ending selling transaction early");
             EndTransaction();
             return;
         }
@@ -229,6 +230,7 @@ public sealed partial class GameClient
         {        
             try
             {
+                Log($"Accessing sell page...");
                 await interaction.SelectFromMainAsync(sellKey);
             }
             catch (OperationCanceledException)
@@ -238,9 +240,11 @@ public sealed partial class GameClient
         foreach (var (item, count) in items)
         {
             if (item.Info == null) continue;
+            Log($"Processing {item.Info.Name}...");
             _pendingSellChecks[item.UniqueID] = (entry, item.Info.Type);
             using var cts = new System.Threading.CancellationTokenSource(2000);
             var waitTask = WaitForSellItemAsync(item.UniqueID, cts.Token);
+            Log($"Selling {item.Info.Name} (x{count})...");
             await SellItemAsync(item.UniqueID, count);
             try
             {
@@ -359,7 +363,7 @@ public sealed partial class GameClient
             for (int i = 0; i < _inventory.Length; i++)
             {
                 var temp = _inventory[i];
-                if (temp == null || temp.Info != item.Info || temp.Count >= temp.Info.StackSize) continue;
+                if (temp == null || temp.Info.Index != item.Info.Index || temp.Count >= temp.Info.StackSize) continue;
 
                 if (item.Count + temp.Count <= temp.Info.StackSize)
                 {
