@@ -1770,6 +1770,8 @@ public sealed partial class GameClient
             var localMap = CurrentMap;
             if (localMap == null) return false;
 
+            string startMap = _currentMapFile;
+
             Point lastLoc = CurrentLocation;
             DateTime stuckSince = DateTime.MinValue;
 
@@ -1781,6 +1783,9 @@ public sealed partial class GameClient
 
                 await MovementHelper.MoveAlongPathAsync(this, p, dest);
                 await Task.Delay(delay);
+
+                if (!string.Equals(_currentMapFile, startMap, StringComparison.OrdinalIgnoreCase))
+                    return true;
 
                 localMap = CurrentMap;
                 if (localMap == null)
