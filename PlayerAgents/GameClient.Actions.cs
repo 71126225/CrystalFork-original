@@ -16,6 +16,8 @@ public sealed partial class GameClient
         if (_movementSaveCts != null) return;
         CancelMovementDeleteCheck();
         var target = Functions.PointMove(_currentLocation, direction, 1);
+        if (RecentlyChangedMap && IsKnownMovementCell(target))
+            return;
         await TryOpenDoorAsync(target);
         Log($"I am walking to {target.X}, {target.Y}");
         _pendingMoveTarget = target;
@@ -34,6 +36,8 @@ public sealed partial class GameClient
         CancelMovementDeleteCheck();
         var first = Functions.PointMove(_currentLocation, direction, 1);
         var target = Functions.PointMove(_currentLocation, direction, 2);
+        if (RecentlyChangedMap && (IsKnownMovementCell(first) || IsKnownMovementCell(target)))
+            return;
         await TryOpenDoorAsync(first);
         await TryOpenDoorAsync(target);
         Log($"I am running to {target.X}, {target.Y}");
@@ -65,6 +69,8 @@ public sealed partial class GameClient
     public bool CanWalk(MirDirection direction)
     {
         var target = Functions.PointMove(_currentLocation, direction, 1);
+        if (RecentlyChangedMap && IsKnownMovementCell(target))
+            return false;
         return !IsCellBlocked(target);
     }
 
@@ -76,6 +82,8 @@ public sealed partial class GameClient
 
         var first = Functions.PointMove(_currentLocation, direction, 1);
         var second = Functions.PointMove(_currentLocation, direction, 2);
+        if (RecentlyChangedMap && (IsKnownMovementCell(first) || IsKnownMovementCell(second)))
+            return false;
 
         return !(IsCellBlocked(first) || IsCellBlocked(second));
     }

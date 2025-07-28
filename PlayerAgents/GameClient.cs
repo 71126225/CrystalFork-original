@@ -79,6 +79,10 @@ public sealed partial class GameClient
     private DateTime _lastMoveTime = DateTime.MinValue;
     private bool _canRun;
 
+    private DateTime _lastMapChangeTime = DateTime.MinValue;
+
+    private bool RecentlyChangedMap => DateTime.UtcNow - _lastMapChangeTime < TimeSpan.FromSeconds(2);
+
     private DateTime _mapStartTime = DateTime.MinValue;
     private long _mapStartExp;
     private ushort _mapStartLevel;
