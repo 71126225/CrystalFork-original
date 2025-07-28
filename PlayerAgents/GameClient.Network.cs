@@ -200,6 +200,8 @@ public sealed partial class GameClient
                 _inventory = info.Inventory;
                 _equipment = info.Equipment;
                 _gold = info.Gold;
+                _magics.Clear();
+                _magics.AddRange(info.Magics);
                 BindAll(_inventory);
                 BindAll(_equipment);
                 MarkStatsDirty();
@@ -762,6 +764,21 @@ public sealed partial class GameClient
                 }
                 if (eqChanged)
                     MarkStatsDirty();
+                break;
+            case S.NewMagic nm:
+                _magics.Add(nm.Magic);
+                break;
+            case S.RemoveMagic rm:
+                if (rm.PlaceId >= 0 && rm.PlaceId < _magics.Count)
+                    _magics.RemoveAt(rm.PlaceId);
+                break;
+            case S.MagicLeveled ml:
+                var mag = _magics.FirstOrDefault(m => m.Spell == ml.Spell);
+                if (mag != null)
+                {
+                    mag.Level = ml.Level;
+                    mag.Experience = ml.Experience;
+                }
                 break;
             case S.KeepAlive keep:
                 _pingTime = Environment.TickCount64 - keep.Time;

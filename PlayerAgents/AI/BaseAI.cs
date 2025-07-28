@@ -220,6 +220,8 @@ public class BaseAI
                 Client.Log($"I have unequipped {currentTorch.Info.FriendlyName}");
             await Client.UnequipItemAsync(torchSlot);
         }
+
+        await Client.UseLearnableBooksAsync();
     }
 
     private async Task TryUsePotionsAsync()

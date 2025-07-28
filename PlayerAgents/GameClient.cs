@@ -63,6 +63,7 @@ public sealed partial class GameClient
     private UserItem[]? _equipment;
     private UserItem? _lastPickedItem;
     private uint _gold;
+    private readonly List<ClientMagic> _magics = new();
 
     private int _maxBagWeight;
     private int _maxWearWeight;
@@ -575,6 +576,7 @@ public sealed partial class GameClient
     public uint ObjectId => _objectId;
     public uint Gold => _gold;
     public UserItem? LastPickedItem => _lastPickedItem;
+    public IReadOnlyList<ClientMagic> Magics => _magics;
     public int HP => _hp;
     public int MP => _mp;
     public MapMovementMemoryBank MovementMemory => _movementMemory;
@@ -1047,6 +1049,58 @@ public sealed partial class GameClient
         }
 
         return total;
+    }
+
+    public bool HasMagic(Spell spell)
+    {
+        return _magics.Any(m => m.Spell == spell);
+    }
+
+    public bool CanUseBook(UserItem item)
+    {
+        if (_playerClass == null) return false;
+        if (item.Info == null || item.Info.Type != ItemType.Book) return false;
+
+        if (item.Info.RequiredGender != RequiredGender.None)
+        {
+            RequiredGender genderFlag = _gender == MirGender.Male ? RequiredGender.Male : RequiredGender.Female;
+            if (!item.Info.RequiredGender.HasFlag(genderFlag))
+                return false;
+        }
+
+        RequiredClass playerClassFlag = _playerClass switch
+        {
+            MirClass.Warrior => RequiredClass.Warrior,
+            MirClass.Wizard => RequiredClass.Wizard,
+            MirClass.Taoist => RequiredClass.Taoist,
+            MirClass.Assassin => RequiredClass.Assassin,
+            MirClass.Archer => RequiredClass.Archer,
+            _ => RequiredClass.None
+        };
+
+        if (!item.Info.RequiredClass.HasFlag(playerClassFlag))
+            return false;
+
+        if (item.Info.RequiredType == RequiredType.Level && _level < item.Info.RequiredAmount)
+            return false;
+
+        Spell spell = (Spell)item.Info.Shape;
+        if (HasMagic(spell))
+            return false;
+
+        return true;
+    }
+
+    public async Task UseLearnableBooksAsync()
+    {
+        if (_inventory == null) return;
+        foreach (var item in _inventory)
+        {
+            if (item == null) continue;
+            if (!CanUseBook(item)) continue;
+            await UseItemAsync(item);
+            await Task.Delay(200);
+        }
     }
 
     private async Task HarvestLoopAsync(TrackedObject monster)
