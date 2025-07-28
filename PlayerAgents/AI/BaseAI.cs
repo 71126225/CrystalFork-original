@@ -1098,7 +1098,11 @@ public class BaseAI
                         bool moved = path.Count > 0 && await MoveAlongPathAsync(path, closest.Location);
                         if (!moved)
                         {
-                            var delay = path.Count == 0 ? UnreachableItemRetryDelay : ItemRetryDelay;
+                            bool blocked = Client.TrackedObjects.Values.Any(o =>
+                                !o.Dead &&
+                                (o.Type == ObjectType.Player || o.Type == ObjectType.Monster) &&
+                                o.Location == closest.Location);
+                            var delay = path.Count == 0 || blocked ? UnreachableItemRetryDelay : ItemRetryDelay;
                             _itemRetryTimes[(closest.Location, closest.Name)] = DateTime.UtcNow + delay;
                             _currentTarget = null;
                         }
