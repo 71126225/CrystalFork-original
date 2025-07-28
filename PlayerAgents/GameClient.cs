@@ -356,6 +356,38 @@ public sealed partial class GameClient
         return false;
     }
 
+    private int GetUpgradeCount(ItemInfo info)
+    {
+        if (_equipment == null) return 0;
+
+        var candidate = new UserItem(info);
+        int count = 0;
+
+        for (int i = 0; i < _equipment.Length; i++)
+        {
+            var slot = (EquipmentSlot)i;
+            if (!IsItemForSlot(info, slot)) continue;
+            if (!CanEquipItem(candidate, slot)) continue;
+
+            var current = _equipment[i];
+            int newScore = GetItemScore(candidate, slot);
+            int currentScore = current != null ? GetItemScore(current, slot) : -1;
+            if (newScore > currentScore)
+            {
+                if (info.Type == ItemType.Ring || info.Type == ItemType.Bracelet)
+                {
+                    count++;
+                }
+                else
+                {
+                    return 1;
+                }
+            }
+        }
+
+        return count;
+    }
+
     private Dictionary<ItemType, EquipmentUpgradeInfo> _equipmentUpgradeTargets = new();
 
     public IReadOnlyCollection<EquipmentUpgradeInfo> GetEquipmentUpgradeBuyTypes()
@@ -544,23 +576,12 @@ public sealed partial class GameClient
             if (item.Info == null) continue;
 
             bool need = false;
+            int buyCount = 1;
 
             if (_equipment != null && item.Info.Type != ItemType.Torch)
             {
-                for (int slot = 0; slot < _equipment.Count(); slot++)
-                {
-                    var equipSlot = (EquipmentSlot)slot;
-                    if (!IsItemForSlot(item.Info, equipSlot)) continue;
-                    if (!CanEquipItem(item, equipSlot)) continue;
-                    var current = _equipment[slot];
-                    int newScore = GetItemScore(item, equipSlot);
-                    int currentScore = current != null ? GetItemScore(current, equipSlot) : -1;
-                    if (newScore > currentScore)
-                    {
-                        need = true;
-                        break;
-                    }
-                }
+                buyCount = GetUpgradeCount(item.Info);
+                need = buyCount > 0;
             }
 
             if (!need && desired != null)
@@ -582,21 +603,29 @@ public sealed partial class GameClient
 
             if (need && _gold >= item.Info.Price)
             {
-                if (freeSlots <= 0 || currentWeight + item.Weight > maxWeight)
-                    continue;
-
-                if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var npc))
-                    Log($"I am buying {item.Info.FriendlyName} from {npc.Name} for {item.Info.Price} gold");
-                await BuyItemAsync(item.UniqueID, 1, type);
-                await Task.Delay(50);
-                if (_lastPickedItem != null && _lastPickedItem.Info != null &&
-                    _lastPickedItem.Info.Index == item.Info.Index && CanBeEquipped(_lastPickedItem.Info))
+                while (buyCount > 0 && _gold >= item.Info.Price)
                 {
-                    await EquipIfBetterAsync(_lastPickedItem);
-                }
+                    if (freeSlots <= 0 || currentWeight + item.Weight > maxWeight)
+                        break;
 
-                freeSlots--;
-                currentWeight += item.Weight;
+                    if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var npc))
+                        Log($"I am buying {item.Info.FriendlyName} from {npc.Name} for {item.Info.Price} gold");
+                    await BuyItemAsync(item.UniqueID, 1, type);
+                    await Task.Delay(50);
+                    if (_lastPickedItem != null && _lastPickedItem.Info != null &&
+                        _lastPickedItem.Info.Index == item.Info.Index && CanBeEquipped(_lastPickedItem.Info))
+                    {
+                        await EquipIfBetterAsync(_lastPickedItem);
+                    }
+
+                    freeSlots--;
+                    currentWeight += item.Weight;
+
+                    if (item.Info.Type == ItemType.Ring || item.Info.Type == ItemType.Bracelet)
+                        buyCount = GetUpgradeCount(item.Info);
+                    else
+                        buyCount = 0;
+                }
             }
             else if (need)
             {
