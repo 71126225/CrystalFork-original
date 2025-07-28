@@ -287,7 +287,7 @@ public sealed partial class GameClient
 
         bool need = false;
 
-        if (_equipment != null)
+        if (_equipment != null && info.Type != ItemType.Torch)
         {
             var item = new UserItem(info);
             for (int slot = 0; slot < _equipment.Length; slot++)
