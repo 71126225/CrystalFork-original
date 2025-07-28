@@ -645,7 +645,7 @@ public class BaseAI
         return NpcInteractionResult.Success;
     }
 
-    private async Task HandleInventoryAsync(bool force = false)
+    private async Task HandleInventoryAsync(bool force = false, bool keepIgnore = false)
     {
         if (_sellingItems) return;
         var inventory = Client.Inventory;
@@ -694,13 +694,16 @@ public class BaseAI
                 break;
             }
         }
-        Client.IgnoreNpcInteractions = false;
-        Client.ResumeNpcInteractions();
+        if (!keepIgnore)
+        {
+            Client.IgnoreNpcInteractions = false;
+            Client.ResumeNpcInteractions();
+        }
         _sellingItems = false;
         Client.UpdateAction("roaming...");
     }
 
-    private async Task<bool> HandleEquipmentRepairsAsync(bool force = false)
+    private async Task<bool> HandleEquipmentRepairsAsync(bool force = false, bool keepIgnore = false)
     {
         bool cantAfford = false;
         if (_repairingItems) return cantAfford;
@@ -747,8 +750,11 @@ public class BaseAI
             }
         }
 
-        Client.IgnoreNpcInteractions = false;
-        Client.ResumeNpcInteractions();
+        if (!keepIgnore)
+        {
+            Client.IgnoreNpcInteractions = false;
+            Client.ResumeNpcInteractions();
+        }
         _repairingItems = false;
         Client.UpdateAction("roaming...");
         return cantAfford;
@@ -804,7 +810,7 @@ public class BaseAI
         }
     }
 
-    private async Task<bool> HandleBuyingItemsAsync()
+    private async Task<bool> HandleBuyingItemsAsync(bool keepIgnore = false)
     {
         bool cantAfford = false;
         if (_buyingItems || _buyAttempted) return cantAfford;
@@ -846,8 +852,11 @@ public class BaseAI
         }
         finally
         {
-            Client.IgnoreNpcInteractions = false;
-            Client.ResumeNpcInteractions();
+            if (!keepIgnore)
+            {
+                Client.IgnoreNpcInteractions = false;
+                Client.ResumeNpcInteractions();
+            }
             RefreshPendingBuyTypes();
             _buyingItems = false;
             Client.UpdateAction("roaming...");
@@ -858,11 +867,20 @@ public class BaseAI
 
     private async Task<bool> SellRepairAndBuyAsync()
     {
-        await HandleInventoryAsync(true);
-        bool cantAfford = await HandleEquipmentRepairsAsync(true);
-        UpdatePendingBuyTypes();
-        cantAfford |= await HandleBuyingItemsAsync();
-        return cantAfford;
+        Client.IgnoreNpcInteractions = true;
+        try
+        {
+            await HandleInventoryAsync(true, true);
+            bool cantAfford = await HandleEquipmentRepairsAsync(true, true);
+            UpdatePendingBuyTypes();
+            cantAfford |= await HandleBuyingItemsAsync(true);
+            return cantAfford;
+        }
+        finally
+        {
+            Client.IgnoreNpcInteractions = false;
+            Client.ResumeNpcInteractions();
+        }
     }
 
     private bool InventoryNeedsRefresh()
@@ -1272,7 +1290,10 @@ public class BaseAI
                 _stationarySince = DateTime.UtcNow;
             }
             else if (_stationarySince != DateTime.MinValue &&
-                     DateTime.UtcNow - _stationarySince > TimeSpan.FromSeconds(5))
+                     DateTime.UtcNow - _stationarySince > TimeSpan.FromSeconds(5) &&
+                     !traveling &&
+                     !_sellingItems && !_repairingItems && !_buyingItems &&
+                     !Client.IsProcessingNpc)
             {
                 var dir = (MirDirection)Random.Next(8);
                 await Client.TurnAsync(dir);

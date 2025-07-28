@@ -224,12 +224,10 @@ public sealed partial class GameClient
             return;
         }
         using (var cts = new System.Threading.CancellationTokenSource(2000))
-        {
-            var waitTask = WaitForLatestNpcResponseAsync(cts.Token);
-            await interaction.SelectFromMainAsync(sellKey);
+        {        
             try
             {
-                await waitTask;
+                await interaction.SelectFromMainAsync(sellKey);
             }
             catch (OperationCanceledException)
             {
