@@ -71,6 +71,7 @@ public class BaseAI
     protected virtual TimeSpan TravelPathFindInterval => TimeSpan.FromSeconds(1);
     protected virtual TimeSpan FailedTravelPathFindDelay => TimeSpan.FromSeconds(1);
     protected virtual TimeSpan EquipCheckInterval => TimeSpan.FromSeconds(5);
+    protected virtual int GoodsResolveDistance => 500;
     protected virtual double HpPotionWeightFraction => 0;
     protected virtual double MpPotionWeightFraction => 0;
     protected virtual Stat[] OffensiveStats => Array.Empty<Stat>();
@@ -705,6 +706,7 @@ public class BaseAI
         }
         _sellingItems = false;
         Client.UpdateAction("roaming...");
+        await ResolveNearbyGoodsAsync();
     }
 
     private async Task<bool> HandleEquipmentRepairsAsync(bool force = false, bool keepIgnore = false)
@@ -761,6 +763,7 @@ public class BaseAI
         }
         _repairingItems = false;
         Client.UpdateAction("roaming...");
+        await ResolveNearbyGoodsAsync();
         return cantAfford;
     }
 
@@ -866,6 +869,7 @@ public class BaseAI
             RefreshPendingBuyTypes();
             _buyingItems = false;
             Client.UpdateAction("roaming...");
+            await ResolveNearbyGoodsAsync();
             UpdateTravelDestination();
         }
         return cantAfford;
@@ -880,7 +884,35 @@ public class BaseAI
             bool cantAfford = await HandleEquipmentRepairsAsync(true, true);
             UpdatePendingBuyTypes();
             cantAfford |= await HandleBuyingItemsAsync(true);
+            await ResolveNearbyGoodsAsync();
             return cantAfford;
+        }
+        finally
+        {
+            Client.IgnoreNpcInteractions = false;
+            Client.ResumeNpcInteractions();
+        }
+    }
+
+    private async Task ResolveNearbyGoodsAsync()
+    {
+        if (!Client.TryFindNearestUnresolvedGoodsNpc(GoodsResolveDistance, out var npcId, out var loc, out var entry))
+            return;
+
+        Client.IgnoreNpcInteractions = true;
+        try
+        {
+            if (entry != null)
+                Client.Log($"Resolving goods at {entry.Name} at {loc.X}, {loc.Y}");
+
+            bool reached = await Client.MoveWithinRangeAsync(loc, npcId, Globals.DataRange, NpcInteractionType.Buying, WalkDelay, entry?.MapFile);
+            if (!reached) return;
+
+            if (npcId == 0 && entry != null)
+                npcId = await Client.ResolveNpcIdAsync(entry);
+
+            if (npcId != 0)
+                await Client.OpenBuyPageAsync(npcId);
         }
         finally
         {

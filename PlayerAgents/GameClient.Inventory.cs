@@ -211,6 +211,44 @@ public sealed partial class GameClient
         }, out id, out location, out entry, out matchedTypes);
     }
 
+    public bool TryFindNearestUnresolvedGoodsNpc(int maxDistance, out uint id, out Point location, out NpcEntry? entry)
+    {
+        id = 0;
+        location = default;
+        entry = null;
+        if (string.IsNullOrEmpty(_currentMapFile))
+            return false;
+
+        int bestDist = int.MaxValue;
+        foreach (var e in _npcMemory.GetAll())
+        {
+            if (!e.CanBuy || e.BuyItems == null) continue;
+            if (e.BuyItems.All(b => ItemInfoDict.ContainsKey(b.Index))) continue;
+            if (IsNpcIgnored(e)) continue;
+
+            int dist = GetNpcTravelDistance(e);
+            if (dist > maxDistance || dist >= bestDist) continue;
+
+            bestDist = dist;
+            entry = e;
+            location = new Point(e.X, e.Y);
+        }
+
+        if (entry != null)
+        {
+            foreach (var kv in _npcEntries)
+            {
+                if (kv.Value == entry)
+                {
+                    id = kv.Key;
+                    break;
+                }
+            }
+        }
+
+        return entry != null;
+    }
+
     public async Task SellItemsToNpcAsync(uint npcId, IReadOnlyList<(UserItem item, ushort count)> items)
     {
         var entry = await ResolveNpcEntryAsync(npcId);
@@ -354,6 +392,48 @@ public sealed partial class GameClient
         }
         EndTransaction();
         return cantAfford;
+    }
+
+    public async Task OpenBuyPageAsync(uint npcId)
+    {
+        var entry = await ResolveNpcEntryAsync(npcId);
+        if (entry == null) return;
+
+        BeginTransaction(npcId, entry);
+
+        var interaction = _npcInteraction!;
+        var page = await interaction.BeginAsync();
+        string[] buyKeys = { "@BUYSELLNEW", "@BUYSELL", "@BUYNEW", "@PEARLBUY", "@BUY" };
+        var buyKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => buyKeys.Contains(k.ToUpper())) ?? "@BUY";
+        if (buyKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
+        {
+            EndTransaction();
+            return;
+        }
+
+        using (var cts = new CancellationTokenSource(5000))
+        {
+            var waitTask = WaitForNpcGoodsAsync(cts.Token);
+            await interaction.SelectFromMainAsync(buyKey);
+            try
+            {
+                await waitTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(200);
+            await WaitForLatestNpcResponseAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        EndTransaction();
     }
 
     private UserItem? AddItem(UserItem item)
