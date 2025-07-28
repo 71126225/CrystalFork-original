@@ -841,8 +841,35 @@ public class BaseAI
         {
             while (neededTypes.Count > 0)
             {
-                if (!Client.TryFindNearestBuyNpc(neededTypes, out var npcId, out var loc, out var entry, out var matched))
+                uint npcId = 0;
+                Point loc = default;
+                NpcEntry? entry = null;
+                var matched = new List<ItemType>();
+
+                EquipmentUpgradeInfo? upgrade = null;
+                foreach (var t in neededTypes)
+                {
+                    if (Client.TryGetEquipmentUpgradeTarget(t, out var info))
+                    {
+                        upgrade = info;
+                        break;
+                    }
+                }
+
+                if (upgrade != null)
+                {
+                    entry = upgrade.Npc;
+                    loc = new Point(entry.X, entry.Y);
+                    matched.Add(upgrade.Type);
+                }
+                else if (neededTypes.Contains(ItemType.Book) && Client.TryFindNearestLearnableBookNpc(out npcId, out loc, out entry))
+                {
+                    matched.Add(ItemType.Book);
+                }
+                else if (!Client.TryFindNearestBuyNpc(neededTypes, out npcId, out loc, out entry, out matched, includeUnknowns: false))
+                {
                     break;
+                }
 
                 if (entry != null)
                     Client.Log($"Heading to {entry.Name} at {loc.X}, {loc.Y} to buy items");

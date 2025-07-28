@@ -466,6 +466,28 @@ public sealed partial class GameClient
         return false;
     }
 
+    public bool TryGetEquipmentUpgradeTarget(ItemType type, out EquipmentUpgradeInfo? info)
+    {
+        return _equipmentUpgradeTargets.TryGetValue(type, out info);
+    }
+
+    public bool TryFindNearestLearnableBookNpc(out uint id, out Point location, out NpcEntry? entry)
+    {
+        return TryFindNearestNpc(e =>
+        {
+            if (e.BuyItems == null) return false;
+            foreach (var b in e.BuyItems)
+            {
+                if (!ItemInfoDict.TryGetValue(b.Index, out var info)) continue;
+                if (info.Type != ItemType.Book) continue;
+                var item = new UserItem(info);
+                if (CanUseBook(item) && _gold >= info.Price)
+                    return true;
+            }
+            return false;
+        }, out id, out location, out entry);
+    }
+
     private async Task EquipIfBetterAsync(UserItem item)
     {
         if (_equipment == null || item.Info == null) return;
@@ -523,7 +545,7 @@ public sealed partial class GameClient
 
             bool need = false;
 
-            if (_equipment != null)
+            if (_equipment != null && item.Info.Type != ItemType.Torch)
             {
                 for (int slot = 0; slot < _equipment.Count(); slot++)
                 {
