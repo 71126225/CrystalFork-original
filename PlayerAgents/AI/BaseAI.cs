@@ -288,11 +288,12 @@ public class BaseAI
         {
             if (obj.Type == ObjectType.Monster)
             {
-                if (_monsterIgnoreTimes.TryGetValue(obj.Id, out var ignore) && DateTime.UtcNow < ignore) continue;
+                if (_monsterIgnoreTimes.TryGetValue(obj.Id, out var ignore) && DateTime.UtcNow < ignore)
+                    continue;
                 if (obj.Dead) continue;
                 if (IgnoredAIs.Contains(obj.AI)) continue;
-                // previously ignored monsters that were recently engaged with another player
-                // now we attempt to attack them unless we cannot reach them
+                if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != Client.ObjectId)
+                    continue;
                 int dist = Functions.MaxDistance(current, obj.Location);
                 if (dist < monsterDist)
                 {
