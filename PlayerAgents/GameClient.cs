@@ -1251,6 +1251,7 @@ public sealed partial class GameClient
             uint cost = item.RepairPrice() * (special ? 3U : 1U);
             if (_gold < cost)
             {
+                Log($"Cannot afford repair of {item.Info.Name}.");
                 cantAfford = true;
                 if (slot.HasValue)
                 {
@@ -1264,9 +1265,15 @@ public sealed partial class GameClient
             try
             {
                 if (special)
+                {
+                    Log($"Sending special repair request...");
                     await SendAsync(new C.SRepairItem { UniqueID = item.UniqueID });
+                }
                 else
+                {
+                    Log($"Sending repair request...");
                     await SendAsync(new C.RepairItem { UniqueID = item.UniqueID });
+                }
                 await waitTask;
             }
             catch (OperationCanceledException)
@@ -1276,6 +1283,7 @@ public sealed partial class GameClient
 
             if (slot.HasValue)
             {
+                Log($"Reequipping {item.Info.Name}...");
                 await EquipItemAsync(item, slot.Value);
                 await Task.Delay(200);
             }
@@ -1484,28 +1492,6 @@ public sealed partial class GameClient
         ProcessNextNpcInQueue();
     }
 
-    private Func<Task> CreateBuyTask(string key) => async () =>
-    {
-        if (_npcInteraction == null) return;
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var waitTask = WaitForNpcGoodsAsync(cts.Token);
-        try
-        {
-            if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var entry))
-                Log($"I am looking at {entry.Name}'s goods list");
-            await _npcInteraction.SelectFromMainAsync(key);
-            await waitTask;
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            _processingNpcAction = false;
-            ProcessNpcActionQueue();
-        }
-    };
-
     private Func<Task> CreateSellTask(string key) => async () =>
     {
         if (_npcInteraction == null) return;
@@ -1688,10 +1674,6 @@ public sealed partial class GameClient
             }
         }
 
-        if (needBuyCheck && buyKey != null)
-        {
-            _npcActionTasks.Enqueue((buyKey, CreateBuyTask(buyKey)));
-        }
         if (sellKey != null)
         {
             _npcActionTasks.Enqueue((sellKey, CreateSellTask(sellKey)));

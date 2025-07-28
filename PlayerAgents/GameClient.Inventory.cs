@@ -281,12 +281,14 @@ public sealed partial class GameClient
         bool special = repairKey.Equals("@SREPAIR", StringComparison.OrdinalIgnoreCase);
         if (repairKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
         {
+            Log($"Ending repair interaction early.");
             EndTransaction();
             return false;
         }
         using (var cts = new CancellationTokenSource(2000))
         {
             var waitTask = WaitForLatestNpcResponseAsync(cts.Token);
+            Log($"Accessing repair key...");
             await interaction.SelectFromMainAsync(repairKey);
             try
             {

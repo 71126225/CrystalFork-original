@@ -126,7 +126,7 @@ public sealed partial class GameClient
         if (item == null) return;
         int index = FindFreeInventorySlot();
         if (index < 0) return;
-
+        Log($"Unequipping {item.Info.Name}...");
         var remove = new C.RemoveItem
         {
             Grid = MirGridType.Inventory,
