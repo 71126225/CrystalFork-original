@@ -140,7 +140,9 @@ public sealed partial class GameClient
         }
     }
 
-    private readonly ConcurrentDictionary<uint, NpcEntry> _npcEntries = new();
+    // Shared across all clients so NPC discovery information can be contributed
+    // by every agent instance
+    private static readonly ConcurrentDictionary<uint, NpcEntry> _npcEntries = new();
     private uint? _dialogNpcId;
     private readonly Queue<uint> _npcQueue = new();
     private readonly Queue<(string key, Func<Task> action)> _npcActionTasks = new();
@@ -347,6 +349,96 @@ public sealed partial class GameClient
                 return true;
         }
         return false;
+    }
+
+    private Dictionary<ItemType, EquipmentUpgradeInfo> _equipmentUpgradeTargets = new();
+
+    public IReadOnlyCollection<EquipmentUpgradeInfo> GetEquipmentUpgradeBuyTypes()
+    {
+        var best = new Dictionary<ItemType, (ItemInfo info, NpcEntry npc, int improvement, int distance)>();
+
+        if (_equipment == null) return Array.Empty<EquipmentUpgradeInfo>();
+
+        // consider all known NPC entries from the shared memory bank
+        foreach (var entry in _npcMemory.GetAll())
+        {
+            if (entry.BuyItems == null) continue;
+
+            int dist = GetNpcTravelDistance(entry);
+
+            foreach (var b in entry.BuyItems)
+            {
+                if (!ItemInfoDict.TryGetValue(b.Index, out var info)) continue;
+                if (info.Type == ItemType.Torch) continue;
+
+                var item = new UserItem(info);
+                int bestDiff = 0;
+                bool upgrade = false;
+
+                for (int slot = 0; slot < _equipment.Length; slot++)
+                {
+                    var equipSlot = (EquipmentSlot)slot;
+                    if (!IsItemForSlot(info, equipSlot)) continue;
+                    if (!CanEquipItem(item, equipSlot)) continue;
+
+                    var current = _equipment[slot];
+                    int newScore = GetItemScore(item, equipSlot);
+                    int currentScore = current != null ? GetItemScore(current, equipSlot) : -1;
+                    int diff = newScore - currentScore;
+                    if (diff > 0)
+                    {
+                        upgrade = true;
+                        if (diff > bestDiff) bestDiff = diff;
+                    }
+                }
+
+                if (!upgrade || _gold < info.Price) continue;
+
+                if (best.TryGetValue(info.Type, out var existing))
+                {
+                    if (bestDiff > existing.improvement || (bestDiff == existing.improvement && dist < existing.distance))
+                        best[info.Type] = (info, entry, bestDiff, dist);
+                }
+                else
+                {
+                    best[info.Type] = (info, entry, bestDiff, dist);
+                }
+            }
+        }
+
+        var result = new Dictionary<ItemType, EquipmentUpgradeInfo>();
+
+        foreach (var kv in best)
+        {
+            var type = kv.Key;
+            var info = kv.Value.info;
+            var npc = kv.Value.npc;
+
+            int count = 1;
+            if (type == ItemType.Ring || type == ItemType.Bracelet)
+            {
+                count = 0;
+                var candidate = new UserItem(info);
+                EquipmentSlot[] slots = type == ItemType.Ring
+                    ? new[] { EquipmentSlot.RingL, EquipmentSlot.RingR }
+                    : new[] { EquipmentSlot.BraceletL, EquipmentSlot.BraceletR };
+                foreach (var slot in slots)
+                {
+                    var current = _equipment[(int)slot];
+                    if (!IsItemForSlot(info, slot)) continue;
+                    if (!CanEquipItem(candidate, slot)) continue;
+                    int newScore = GetItemScore(candidate, slot);
+                    int currentScore = current != null ? GetItemScore(current, slot) : -1;
+                    if (newScore > currentScore) count++;
+                }
+                if (count == 0) count = 1;
+            }
+
+            result[type] = new EquipmentUpgradeInfo(type, info, npc, count);
+        }
+
+        _equipmentUpgradeTargets = result;
+        return result.Values.ToList();
     }
 
     private async Task EquipIfBetterAsync(UserItem item)
@@ -1364,6 +1456,7 @@ public sealed partial class GameClient
 
     internal async void StartNpcInteraction(uint id, NpcEntry entry)
     {
+        StopMovement();
         _dialogNpcId = id;
         _npcInteractionStart = DateTime.UtcNow;
         _npcActionTasks.Clear();
@@ -1377,6 +1470,7 @@ public sealed partial class GameClient
 
     internal void BeginTransaction(uint id, NpcEntry entry)
     {
+        StopMovement();
         _dialogNpcId = id;
         _npcInteractionStart = DateTime.UtcNow;
         _recentNpcInteractions[(entry.Name, entry.MapFile, entry.X, entry.Y)] = DateTime.UtcNow;
@@ -1531,7 +1625,7 @@ public sealed partial class GameClient
             }
             string[] buyKeys = { "@BUYSELLNEW", "@BUYSELL", "@BUYNEW", "@PEARLBUY", "@BUY" };
             buyKey = keyList.FirstOrDefault(k => buyKeys.Contains(k.ToUpper())) ?? "@BUY";
-            if (entry.BuyItems == null || entry.BuyItems.All(b => !ItemInfoDict.ContainsKey(b.Index)))
+            if (entry.BuyItems == null || entry.BuyItems.Any(b => !ItemInfoDict.ContainsKey(b.Index)))
             {
                 needBuyCheck = true;
                 if (buyKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
@@ -1694,6 +1788,9 @@ public sealed partial class GameClient
             var localMap = CurrentMap;
             if (localMap == null) return false;
 
+            Point lastLoc = CurrentLocation;
+            DateTime stuckSince = DateTime.MinValue;
+
             while (!Disconnected && Functions.MaxDistance(CurrentLocation, dest) > destRange)
             {
                 var p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
@@ -1706,6 +1803,24 @@ public sealed partial class GameClient
                 localMap = CurrentMap;
                 if (localMap == null)
                     return false;
+
+                if (CurrentLocation == lastLoc)
+                {
+                    if (stuckSince == DateTime.MinValue)
+                        stuckSince = DateTime.UtcNow;
+                    else if (DateTime.UtcNow - stuckSince > TimeSpan.FromSeconds(5))
+                    {
+                        var dir = (MirDirection)_random.Next(8);
+                        await TurnAsync(dir);
+                        stuckSince = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    stuckSince = DateTime.MinValue;
+                }
+
+                lastLoc = CurrentLocation;
             }
 
             return Functions.MaxDistance(CurrentLocation, dest) <= destRange;

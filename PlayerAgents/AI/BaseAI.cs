@@ -796,6 +796,8 @@ public class BaseAI
         foreach (var d in DesiredItems)
             if (NeedMoreOfDesiredItem(d))
                 needed.Add(d.Type);
+        foreach (var info in Client.GetEquipmentUpgradeBuyTypes())
+            needed.Add(info.Type);
         return needed;
     }
 
@@ -914,6 +916,23 @@ public class BaseAI
         return false;
     }
 
+    private bool NeedsImmediateSellOrRepair()
+    {
+        bool bagFull = !Client.HasFreeBagSpace() ||
+            Client.GetCurrentBagWeight() >= Client.GetMaxBagWeight() * 0.9;
+
+        bool needRepair = false;
+        var equipment = Client.Equipment;
+        if (equipment != null)
+        {
+            needRepair = equipment.Any(i => i != null && i.Info != null &&
+                i.Info.Type != ItemType.Torch && i.MaxDura > 0 &&
+                i.CurrentDura <= Math.Max(1, i.MaxDura * 0.02));
+        }
+
+        return bagFull || needRepair;
+    }
+
     public virtual async Task RunAsync()
     {
         Point current;
@@ -948,6 +967,9 @@ public class BaseAI
             {
                 _movementSaveSince = DateTime.MinValue;
             }
+
+            if (!_refreshInventory && NeedsImmediateSellOrRepair())
+                _refreshInventory = true;
 
             Client.ProcessMapExpRateInterval();
             if (_refreshInventory)
