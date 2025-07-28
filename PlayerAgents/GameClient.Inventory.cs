@@ -49,6 +49,7 @@ public sealed partial class GameClient
         int bestDist = int.MaxValue;
         foreach (var e in _npcMemory.GetAll())
         {
+            if (IsNpcIgnored(e)) continue;
             if (!match(e)) continue;
 
             int dist = GetNpcTravelDistance(e);
@@ -92,6 +93,7 @@ public sealed partial class GameClient
         int bestDist = int.MaxValue;
         foreach (var e in _npcMemory.GetAll())
         {
+            if (IsNpcIgnored(e)) continue;
             var types = match(e);
             if (types.Count == 0) continue;
 

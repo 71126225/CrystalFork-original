@@ -614,7 +614,13 @@ public class BaseAI
         {
             Client.Log($"Could not find NPC to {interactionType.ToString().ToLower()}");
             if (entry != null)
+            {
+                var near = Client.TrackedObjects.Values.FirstOrDefault(o => o.Type == ObjectType.Merchant &&
+                    Functions.MaxDistance(o.Location, location) <= Globals.DataRange);
+                if (near != null)
+                    Client.IgnoreNpc(entry);
                 Client.RemoveNpc(entry);
+            }
             return NpcInteractionResult.NpcNotFound;
         }
 

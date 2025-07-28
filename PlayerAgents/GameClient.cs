@@ -163,6 +163,8 @@ public sealed partial class GameClient
     private const int NpcResponseDebounceMs = 100;
     private const int ExplorationLevelMargin = 5;
     private readonly Dictionary<(string name, string map, int x, int y), DateTime> _recentNpcInteractions = new();
+    private readonly Dictionary<(string name, string map, int x, int y), DateTime> _npcIgnoreTimes = new();
+    private static readonly TimeSpan NpcIgnoreDuration = TimeSpan.FromHours(1);
 
     private List<UserItem>? _lastNpcGoods;
     private PanelType _lastNpcGoodsType;
@@ -1330,6 +1332,8 @@ public sealed partial class GameClient
             var next = _npcQueue.Dequeue();
             if (_npcEntries.TryGetValue(next, out entry))
             {
+                if (IsNpcIgnored(entry))
+                    continue;
                 id = next;
                 return true;
             }
@@ -1656,6 +1660,27 @@ public sealed partial class GameClient
         }
 
         _npcMemory.RemoveNpc(entry);
+    }
+
+    public void IgnoreNpc(NpcEntry entry)
+    {
+        var key = (entry.Name, entry.MapFile, entry.X, entry.Y);
+        _npcIgnoreTimes[key] = DateTime.UtcNow + NpcIgnoreDuration;
+    }
+
+    private bool IsNpcIgnored(NpcEntry entry)
+    {
+        var key = (entry.Name, entry.MapFile, entry.X, entry.Y);
+        if (_npcIgnoreTimes.TryGetValue(key, out var until))
+        {
+            if (DateTime.UtcNow >= until)
+            {
+                _npcIgnoreTimes.Remove(key);
+                return false;
+            }
+            return true;
+        }
+        return false;
     }
 
     public async Task<bool> MoveWithinRangeAsync(Point target, uint ignoreId, int range, NpcInteractionType interactionType, int delay, string? targetMap = null)
