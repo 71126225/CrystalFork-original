@@ -433,7 +433,9 @@ public class BaseAI
 
     private async Task ProcessBestMapAsync()
     {
-        if (Client.IgnoreNpcInteractions || DateTime.UtcNow < _travelPauseUntil)
+        if (Client.IgnoreNpcInteractions ||
+            _buyingItems || _sellingItems || _repairingItems ||
+            DateTime.UtcNow < _travelPauseUntil)
             return;
 
         if (DateTime.UtcNow >= _nextBestMapCheck)
