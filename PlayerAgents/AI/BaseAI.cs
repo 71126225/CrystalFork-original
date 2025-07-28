@@ -801,6 +801,8 @@ public class BaseAI
                 needed.Add(d.Type);
         foreach (var info in Client.GetEquipmentUpgradeBuyTypes())
             needed.Add(info.Type);
+        if (Client.AnyNpcHasLearnableBook())
+            needed.Add(ItemType.Book);
         return needed;
     }
 

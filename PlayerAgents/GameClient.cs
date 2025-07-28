@@ -446,6 +446,26 @@ public sealed partial class GameClient
         return result.Values.ToList();
     }
 
+    public bool AnyNpcHasLearnableBook()
+    {
+        foreach (var entry in _npcMemory.GetAll())
+        {
+            if (entry.BuyItems == null) continue;
+
+            foreach (var b in entry.BuyItems)
+            {
+                if (!ItemInfoDict.TryGetValue(b.Index, out var info)) continue;
+                if (info.Type != ItemType.Book) continue;
+
+                var item = new UserItem(info);
+                if (CanUseBook(item) && _gold >= info.Price)
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
     private async Task EquipIfBetterAsync(UserItem item)
     {
         if (_equipment == null || item.Info == null) return;
@@ -531,6 +551,11 @@ public sealed partial class GameClient
                         break;
                     }
                 }
+            }
+
+            if (!need && item.Info.Type == ItemType.Book && CanUseBook(item))
+            {
+                need = true;
             }
 
             if (need && _gold >= item.Info.Price)

@@ -39,6 +39,23 @@ public sealed partial class GameClient
         {
             FireAndForget(SendInventoryAsync(sender));
         }
+        else if (msg.StartsWith("item ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts2 = msg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts2.Length == 2 && int.TryParse(parts2[1], out var index))
+            {
+                if (ItemInfoDict.TryGetValue(index, out var info))
+                {
+                    FireAndForget(SendWhisperAsync(sender,
+                        $"Item {index} known: {info.FriendlyName}"));
+                }
+                else
+                {
+                    FireAndForget(SendWhisperAsync(sender,
+                        $"Item {index} unknown"));
+                }
+            }
+        }
     }
 
     private void StartDebug(string sender)
