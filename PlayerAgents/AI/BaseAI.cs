@@ -324,6 +324,17 @@ public class BaseAI
 
     private TrackedObject? FindClosestTarget(Point current, out int bestDist)
     {
+        // if we are standing on an item, try to pick it up before doing anything else
+        foreach (var obj in Client.TrackedObjects.Values)
+        {
+            if (obj.Type == ObjectType.Item && obj.Location == current &&
+                Client.HasFreeBagSpace() && Client.GetCurrentBagWeight() < Client.GetMaxBagWeight())
+            {
+                bestDist = 0;
+                return obj;
+            }
+        }
+
         TrackedObject? closestMonster = null;
         int monsterDist = int.MaxValue;
         TrackedObject? closestItem = null;
@@ -1496,14 +1507,18 @@ public class BaseAI
     private async Task<bool> HandleHarvestingAsync()
     {
         if (!Client.IsHarvesting) return false;
-        Client.UpdateAction("harvesting");
+
         var current = Client.CurrentLocation;
         var target = FindClosestTarget(current, out int dist);
-        if (target != null && target.Type == ObjectType.Monster && dist <= 1)
+        if (target != null && target.Type == ObjectType.Monster)
         {
-            if (DateTime.UtcNow >= _nextAttackTime)
+            Client.CancelHarvesting();
+            if (dist <= 1 && DateTime.UtcNow >= _nextAttackTime)
                 await AttackMonsterAsync(target, current);
+            return false;
         }
+
+        Client.UpdateAction("harvesting");
         await Task.Delay(WalkDelay);
         return true;
     }

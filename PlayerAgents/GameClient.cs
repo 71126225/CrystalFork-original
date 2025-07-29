@@ -1356,6 +1356,12 @@ public sealed partial class GameClient
         _harvestTargetId = null;
     }
 
+    public void CancelHarvesting()
+    {
+        if (_awaitingHarvest)
+            _harvestComplete = true;
+    }
+
     private async Task DetermineSellTypesAsync(NpcEntry entry)
     {
         if (_inventory == null) return;

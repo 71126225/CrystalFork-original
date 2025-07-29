@@ -1,5 +1,6 @@
 using Shared;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using PlayerAgents.Map;
@@ -11,6 +12,7 @@ public sealed class ArcherAI : BaseAI
     private DateTime _nextShootSpotCheck = DateTime.MinValue;
 
     public ArcherAI(GameClient client) : base(client) { }
+
 
     protected override double HpPotionWeightFraction => 0.10;
     protected override double MpPotionWeightFraction => 0.50;
@@ -45,15 +47,23 @@ public sealed class ArcherAI : BaseAI
 
         if (map != null && dist <= retreatRange)
         {
-            var safe = GetSafestPoint(map, monster, attackRange);
+            var safe = GetRetreatPoint(map, current, monster, attackRange, retreatRange);
             if (safe != current)
             {
-                var path = await MovementHelper.FindPathAsync(Client, map, current, safe, monster.Id, 0);
+                var path = await FindBufferedPathAsync(map, current, safe, 0);
                 if (path.Count > 0)
                 {
-                    await MovementHelper.MoveAlongPathAsync(Client, path, safe);
-                    RecordAttackTime();
-                    return;
+                    bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, safe);
+                    if (moved)
+                    {
+                        RecordAttackTime();
+                        return;
+                    }
+                    else
+                    {
+                        _cachedShootSpot = null;
+                        _nextShootSpotCheck = DateTime.MinValue;
+                    }
                 }
             }
         }
@@ -90,17 +100,54 @@ public sealed class ArcherAI : BaseAI
         if (!canShoot)
         {
             var spot = GetNearestShootSpot(map, target, current, attackRange, retreatRange);
-            if (spot == current && dist > attackRange)
+            if (spot == current)
             {
-                var path = await MovementHelper.FindPathAsync(Client, map, current, target.Location, target.Id, attackRange);
-                if (path.Count > 0)
-                    return await MovementHelper.MoveAlongPathAsync(Client, path, target.Location);
+                if (dist > attackRange)
+                {
+                    var path = await FindBufferedPathAsync(map, current, target.Location, 3);
+                    if (path.Count > 0)
+                    {
+                        bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
+                        if (!moved)
+                        {
+                            _cachedShootSpot = null;
+                            _nextShootSpotCheck = DateTime.MinValue;
+                        }
+                        return moved;
+                    }
+                }
+                else
+                {
+                    var safe = GetRetreatPoint(map, current, target, attackRange, retreatRange);
+                    if (safe != current)
+                    {
+                        var path = await FindBufferedPathAsync(map, current, safe, 0);
+                        if (path.Count > 0)
+                        {
+                            bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, safe);
+                            if (!moved)
+                            {
+                                _cachedShootSpot = null;
+                                _nextShootSpotCheck = DateTime.MinValue;
+                            }
+                            return moved;
+                        }
+                    }
+                }
             }
-            else if (spot != current)
+            else
             {
-                var path = await MovementHelper.FindPathAsync(Client, map, current, spot, target.Id, 0);
+                var path = await FindBufferedPathAsync(map, current, spot, 0);
                 if (path.Count > 0)
-                    return await MovementHelper.MoveAlongPathAsync(Client, path, spot);
+                {
+                    bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, spot);
+                    if (!moved)
+                    {
+                        _cachedShootSpot = null;
+                        _nextShootSpotCheck = DateTime.MinValue;
+                    }
+                    return moved;
+                }
             }
 
             return true;
@@ -116,41 +163,49 @@ public sealed class ArcherAI : BaseAI
 
         if (dist <= retreatRange)
         {
-            var safe = GetSafestPoint(map, target, attackRange);
+            var safe = GetRetreatPoint(map, current, target, attackRange, retreatRange);
             if (safe != current)
             {
-                var path = await MovementHelper.FindPathAsync(Client, map, current, safe, target.Id, 0);
+                var path = await FindBufferedPathAsync(map, current, safe, 0);
                 if (path.Count > 0)
-                    return await MovementHelper.MoveAlongPathAsync(Client, path, safe);
+                {
+                    bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, safe);
+                    if (!moved)
+                    {
+                        _cachedShootSpot = null;
+                        _nextShootSpotCheck = DateTime.MinValue;
+                    }
+                    return moved;
+                }
             }
         }
 
         return true;
     }
 
-    private Point GetSafestPoint(MapData map, TrackedObject target, int range)
+    private Point GetSafestPoint(MapData map, Point origin, TrackedObject target, int range)
     {
-        var obstacles = MovementHelper.BuildObstacles(Client, target.Id, 0);
-        Point best = Client.CurrentLocation;
+        var obstacles = BuildObstacles(map);
+        Point best = origin;
         int bestScore = int.MinValue;
 
         for (int dx = -range; dx <= range; dx++)
         {
             for (int dy = -range; dy <= range; dy++)
             {
-                var p = new Point(target.Location.X + dx, target.Location.Y + dy);
-                int dist = Functions.MaxDistance(p, target.Location);
+                var p = new Point(origin.X + dx, origin.Y + dy);
+                int dist = Functions.MaxDistance(p, origin);
                 if (dist < range - 1 || dist > range) continue;
                 if (!map.IsWalkable(p.X, p.Y)) continue;
                 if (obstacles.Contains(p)) continue;
                 if (!CanShoot(map, p, target.Location)) continue;
 
-                int min = int.MaxValue;
+                int min = 6;
                 foreach (var obj in Client.TrackedObjects.Values)
                 {
                     if (obj.Type != ObjectType.Monster || obj.Dead || obj.Id == target.Id) continue;
                     int d = Functions.MaxDistance(p, obj.Location);
-                    if (d < min) min = d;
+                    if (d <= 6 && d < min) min = d;
                 }
                 int score = min - dist; // prefer farther from others, near range boundary
                 if (score > bestScore)
@@ -164,17 +219,40 @@ public sealed class ArcherAI : BaseAI
         return best;
     }
 
+    private Point GetRetreatPoint(MapData map, Point origin, TrackedObject target, int attackRange, int retreatRange)
+    {
+        var obstacles = BuildObstacles(map);
+
+        var dir = Functions.DirectionFromPoint(target.Location, origin);
+        var p = origin;
+        for (int i = 1; i <= attackRange; i++)
+        {
+            p = Functions.PointMove(origin, dir, i);
+            if (!map.IsWalkable(p.X, p.Y)) break;
+            if (obstacles.Contains(p)) break;
+            if (Functions.MaxDistance(p, target.Location) < retreatRange) continue;
+            if (CanShoot(map, p, target.Location))
+                return p;
+        }
+
+        return GetSafestPoint(map, origin, target, attackRange);
+    }
+
     private Point GetNearestShootSpot(MapData map, TrackedObject target, Point current, int attackRange, int safeDist)
     {
         if (DateTime.UtcNow < _nextShootSpotCheck && _cachedShootSpot.HasValue)
         {
             var spot = _cachedShootSpot.Value;
             int d = Functions.MaxDistance(spot, target.Location);
-            if (d >= safeDist && d <= attackRange && map.IsWalkable(spot.X, spot.Y) && CanShoot(map, spot, target.Location))
+            var obs = BuildObstacles(map);
+            if (d >= safeDist && d <= attackRange &&
+                map.IsWalkable(spot.X, spot.Y) &&
+                !obs.Contains(spot) &&
+                CanShoot(map, spot, target.Location))
                 return spot;
         }
 
-        var obstacles = MovementHelper.BuildObstacles(Client, target.Id, 0);
+        var obstacles = BuildObstacles(map);
         var dirs = new[] { new Point(0,-1), new Point(1,0), new Point(0,1), new Point(-1,0), new Point(1,-1), new Point(1,1), new Point(-1,1), new Point(-1,-1) };
         var queue = new Queue<Point>();
         var visited = new HashSet<Point> { current };
@@ -196,7 +274,8 @@ public sealed class ArcherAI : BaseAI
                 var n = new Point(p.X + d.X, p.Y + d.Y);
                 if (!map.IsWalkable(n.X, n.Y)) continue;
                 if (obstacles.Contains(n)) continue;
-                if (Functions.MaxDistance(n, current) > attackRange) continue;
+                // allow exploring a wider area so we can path around walls
+                if (Functions.MaxDistance(n, current) > attackRange * 3) continue;
                 if (visited.Add(n))
                     queue.Enqueue(n);
             }
@@ -225,5 +304,32 @@ public sealed class ArcherAI : BaseAI
         }
 
         return true;
+    }
+
+    private HashSet<Point> BuildObstacles(MapData map)
+    {
+        var obstacles = MovementHelper.BuildObstacles(Client);
+        var dirs = new[] { new Point(0,-1), new Point(1,0), new Point(0,1), new Point(-1,0), new Point(1,-1), new Point(1,1), new Point(-1,1), new Point(-1,-1) };
+        foreach (var obj in Client.TrackedObjects.Values)
+        {
+            if (obj.Type != ObjectType.Monster || obj.Dead) continue;
+            obstacles.Add(obj.Location);
+            foreach (var d in dirs)
+            {
+                var p = new Point(obj.Location.X + d.X, obj.Location.Y + d.Y);
+                if (map.IsWalkable(p.X, p.Y))
+                    obstacles.Add(p);
+            }
+        }
+        return obstacles;
+    }
+
+    private async Task<List<Point>> FindBufferedPathAsync(MapData map, Point start, Point dest, int radius)
+    {
+        var obstacles = BuildObstacles(map);
+        var path = await PathFinder.FindPathAsync(map, start, dest, obstacles, radius);
+        if (path.Count == 0)
+            path = await MovementHelper.FindPathAsync(Client, map, start, dest, 0, radius);
+        return path;
     }
 }
