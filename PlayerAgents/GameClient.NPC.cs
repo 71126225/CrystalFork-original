@@ -120,4 +120,31 @@ public sealed partial class GameClient
             });
         return tcs.Task;
     }
+
+    public Task WaitForUserStorageAsync(CancellationToken cancellationToken = default)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        _userStorageTcs = tcs;
+        if (cancellationToken != default)
+            cancellationToken.Register(() => tcs.TrySetCanceled());
+        return tcs.Task;
+    }
+
+    public Task<bool> WaitForStoreItemAsync(CancellationToken cancellationToken = default)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        _storeItemTcs = tcs;
+        if (cancellationToken != default)
+            cancellationToken.Register(() => tcs.TrySetCanceled());
+        return tcs.Task;
+    }
+
+    public Task<bool> WaitForTakeBackItemAsync(CancellationToken cancellationToken = default)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        _takeBackItemTcs = tcs;
+        if (cancellationToken != default)
+            cancellationToken.Register(() => tcs.TrySetCanceled());
+        return tcs.Task;
+    }
 }

@@ -203,6 +203,7 @@ public sealed partial class GameClient
                 _magics.Clear();
                 _magics.AddRange(info.Magics);
                 BindAll(_inventory);
+                ScanInventoryForAutoStore();
                 BindAll(_equipment);
                 MarkStatsDirty();
                 Log($"Logged in as {_playerName}");
@@ -615,6 +616,42 @@ public sealed partial class GameClient
                     int idx = Array.FindIndex(_equipment, x => x != null && x.UniqueID == newItem.UniqueID);
                     if (idx >= 0) _equipment[idx] = newItem;
                     MarkStatsDirty();
+                }
+                break;
+            case S.UserStorage us:
+                _storage = us.Storage;
+                BindAll(_storage);
+                _userStorageTcs?.TrySetResult(true);
+                _userStorageTcs = null;
+                break;
+            case S.ResizeStorage rs:
+                if (_storage == null || _storage.Length != rs.Size)
+                {
+                    Array.Resize(ref _storage, rs.Size);
+                }
+                break;
+            case S.StoreItem store:
+                _storeItemTcs?.TrySetResult(store.Success);
+                _storeItemTcs = null;
+                if (store.Success && _inventory != null && _storage != null)
+                {
+                    if (store.From >= 0 && store.From < _inventory.Length && store.To >= 0 && store.To < _storage.Length)
+                    {
+                        _storage[store.To] = _inventory[store.From];
+                        _inventory[store.From] = null;
+                    }
+                }
+                break;
+            case S.TakeBackItem tb:
+                _takeBackItemTcs?.TrySetResult(tb.Success);
+                _takeBackItemTcs = null;
+                if (tb.Success && _inventory != null && _storage != null)
+                {
+                    if (tb.From >= 0 && tb.From < _storage.Length && tb.To >= 0 && tb.To < _inventory.Length)
+                    {
+                        _inventory[tb.To] = _storage[tb.From];
+                        _storage[tb.From] = null;
+                    }
                 }
                 break;
             case S.NPCResponse nr:

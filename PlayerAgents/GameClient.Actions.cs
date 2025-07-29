@@ -294,6 +294,62 @@ public sealed partial class GameClient
         await SendAsync(drop);
     }
 
+    public async Task<bool> StoreItemAsync(UserItem item)
+    {
+        if (_stream == null || _inventory == null || _storage == null) return false;
+        int from = Array.FindIndex(_inventory, x => x == item);
+        if (from < 0) return false;
+        int to = Array.FindIndex(_storage, x => x == null);
+        if (to < 0) return false;
+        Log($"I am storing {_inventory[from]?.Info?.FriendlyName ?? "item"} from slot {from} to storage slot {to}");
+        var store = new C.StoreItem { From = from, To = to };
+        var waitTask = WaitForStoreItemAsync();
+        await SendAsync(store);
+        using var cts = new CancellationTokenSource(2000);
+        cts.Token.Register(() => _storeItemTcs?.TrySetCanceled());
+        try
+        {
+            bool result = await waitTask;
+            if (result)
+                _pendingStorage.Remove(item);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<int> TakeBackItemAsync(int from)
+    {
+        if (_stream == null || _inventory == null || _storage == null) return -1;
+        if (from < 0 || from >= _storage.Length) return -1;
+        if (_storage[from] == null) return -1;
+        int to = FindFreeInventorySlot();
+        if (to < 0) return -1;
+        Log($"I am taking back {_storage[from]?.Info?.FriendlyName ?? "item"} from storage slot {from} to inventory slot {to}");
+        var req = new C.TakeBackItem { From = from, To = to };
+        var waitTask = WaitForTakeBackItemAsync();
+        await SendAsync(req);
+        using var cts = new CancellationTokenSource(2000);
+        cts.Token.Register(() => _takeBackItemTcs?.TrySetCanceled());
+        try
+        {
+            bool result = await waitTask;
+            if (result && _inventory != null)
+            {
+                var invItem = _inventory[to];
+                if (invItem != null)
+                    await EquipIfBetterAsync(invItem);
+            }
+            return result ? to : -1;
+        }
+        catch (OperationCanceledException)
+        {
+            return -1;
+        }
+    }
+
     public async Task SellItemAsync(UserItem item)
     {
         await SellItemAsync(item.UniqueID, item.Count);

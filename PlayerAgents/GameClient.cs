@@ -64,6 +64,8 @@ public sealed partial class GameClient
     private int _mp;
     private UserItem[]? _inventory;
     private UserItem[]? _equipment;
+    private UserItem[]? _storage;
+    private readonly List<UserItem> _pendingStorage = new();
     private UserItem? _lastPickedItem;
     private uint _gold;
     private readonly List<ClientMagic> _magics = new();
@@ -189,10 +191,14 @@ public sealed partial class GameClient
     private TaskCompletionSource<bool>? _npcGoodsTcs;
     private TaskCompletionSource<bool>? _npcSellTcs;
     private TaskCompletionSource<bool>? _npcRepairTcs;
+    private TaskCompletionSource<bool>? _userStorageTcs;
+    private TaskCompletionSource<bool>? _storeItemTcs;
+    private TaskCompletionSource<bool>? _takeBackItemTcs;
     private readonly Dictionary<ulong, TaskCompletionSource<S.SellItem>> _sellItemTcs = new();
     private readonly Dictionary<ulong, TaskCompletionSource<bool>> _repairItemTcs = new();
     private const int NpcResponseDebounceMs = 100;
     private const int ExplorationLevelMargin = 5;
+    private const int BeltIdx = 6;
     private readonly Dictionary<(string name, string map, int x, int y), DateTime> _recentNpcInteractions = new();
     private readonly Dictionary<(string name, string map, int x, int y), DateTime> _npcIgnoreTimes = new();
     private static readonly TimeSpan NpcIgnoreDuration = TimeSpan.FromHours(1);
@@ -633,6 +639,45 @@ public sealed partial class GameClient
         return indices;
     }
 
+    public async Task CheckStorageForUpgradesAsync()
+    {
+        if (_storage == null || _equipment == null) return;
+        for (int i = 0; i < _storage.Length; i++)
+        {
+            var item = _storage[i];
+            if (item?.Info == null) continue;
+            int bestDiff = 0;
+            int slotIndex = -1;
+            for (int slot = 0; slot < _equipment.Length; slot++)
+            {
+                var equipSlot = (EquipmentSlot)slot;
+                if (!IsItemForSlot(item.Info, equipSlot)) continue;
+                if (!CanEquipItem(item, equipSlot)) continue;
+                var current = _equipment[slot];
+                int newScore = GetItemScore(item, equipSlot);
+                int currentScore = current != null ? GetItemScore(current, equipSlot) : -1;
+                int diff = newScore - currentScore;
+                if (diff > bestDiff)
+                {
+                    bestDiff = diff;
+                    slotIndex = slot;
+                }
+            }
+
+            if (slotIndex >= 0 && bestDiff > 0)
+            {
+                Log($"Retrieving {item.Info.FriendlyName} from storage slot {i} for upgrade");
+                int invIndex = await TakeBackItemAsync(i);
+                if (invIndex >= 0 && _inventory != null)
+                {
+                    var invItem = _inventory[invIndex];
+                    if (invItem != null)
+                        await EquipIfBetterAsync(invItem);
+                }
+            }
+        }
+    }
+
     private async Task EquipIfBetterAsync(UserItem item)
     {
         if (_equipment == null || item.Info == null) return;
@@ -768,6 +813,8 @@ public sealed partial class GameClient
 
     public IReadOnlyList<UserItem>? Inventory => _inventory;
     public IReadOnlyList<UserItem>? Equipment => _equipment;
+    public IReadOnlyList<UserItem>? Storage => _storage;
+    public IReadOnlyList<UserItem> PendingStorageItems => _pendingStorage;
 
     public bool Dead => _dead;
 
@@ -1198,6 +1245,14 @@ public sealed partial class GameClient
         return false;
     }
 
+    public bool HasFreeStorageSpace()
+    {
+        if (_storage == null) return true;
+        for (int i = 0; i < _storage.Length; i++)
+            if (_storage[i] == null) return true;
+        return false;
+    }
+
     public UserItem? FindPotion(bool hpPotion)
     {
         if (_inventory == null) return null;
@@ -1265,10 +1320,9 @@ public sealed partial class GameClient
         return _magics.Any(m => m.Spell == spell);
     }
 
-    public bool CanUseBook(UserItem item)
+    private bool ItemMatchesPlayer(UserItem item)
     {
-        if (_playerClass == null) return false;
-        if (item.Info == null || item.Info.Type != ItemType.Book) return false;
+        if (_playerClass == null || item.Info == null) return false;
 
         if (item.Info.RequiredGender != RequiredGender.None)
         {
@@ -1287,8 +1341,13 @@ public sealed partial class GameClient
             _ => RequiredClass.None
         };
 
-        if (!item.Info.RequiredClass.HasFlag(playerClassFlag))
-            return false;
+        return item.Info.RequiredClass.HasFlag(playerClassFlag);
+    }
+
+    public bool CanUseBook(UserItem item)
+    {
+        if (item.Info == null || item.Info.Type != ItemType.Book) return false;
+        if (!ItemMatchesPlayer(item)) return false;
 
         if (item.Info.RequiredType == RequiredType.Level && _level < item.Info.RequiredAmount)
             return false;
@@ -1298,6 +1357,26 @@ public sealed partial class GameClient
             return false;
 
         return true;
+    }
+
+    private void CheckAutoStore(UserItem item)
+    {
+        if (item.Info == null) return;
+        if (!CanBeEquipped(item.Info)) return;
+        if (!ItemMatchesPlayer(item)) return;
+
+        if (item.Info.RequiredType == RequiredType.Level && _level < item.Info.RequiredAmount)
+            _pendingStorage.Add(item);
+    }
+
+    private void ScanInventoryForAutoStore()
+    {
+        if (_inventory == null) return;
+        foreach (var it in _inventory)
+        {
+            if (it == null) continue;
+            CheckAutoStore(it);
+        }
     }
 
     public async Task UseLearnableBooksAsync()

@@ -173,6 +173,11 @@ public sealed partial class GameClient
         }, out id, out location, out entry, out matchedTypes);
     }
 
+    public bool TryFindNearestStorageNpc(out uint id, out Point location, out NpcEntry? entry)
+    {
+        return TryFindNearestNpc(e => e.CanStore, out id, out location, out entry);
+    }
+
     public bool TryFindNearestNpc(IEnumerable<ItemType> types, out uint id, out Point location, out NpcEntry? entry, out List<ItemType> matchedTypes, bool includeUnknowns = true)
     {
         return TryFindNearestNpc(e =>
@@ -436,6 +441,44 @@ public sealed partial class GameClient
         EndTransaction();
     }
 
+    public async Task OpenStorageAsync(uint npcId)
+    {
+        var entry = await ResolveNpcEntryAsync(npcId);
+        if (entry == null) return;
+
+        Log($"I am opening storage at {entry.Name}");
+
+        BeginTransaction(npcId, entry);
+
+        var interaction = _npcInteraction!;
+        var page = await interaction.BeginAsync();
+        var storageKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => k.Equals("@STORAGE", StringComparison.OrdinalIgnoreCase)) ?? "@STORAGE";
+
+        using (var cts = new CancellationTokenSource(5000))
+        {
+            var waitTask = WaitForUserStorageAsync(cts.Token);
+            await interaction.SelectFromMainAsync(storageKey);
+            try
+            {
+                await waitTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(200);
+            await WaitForLatestNpcResponseAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        EndTransaction();
+    }
+
     private UserItem? AddItem(UserItem item)
     {
         if (_inventory == null) return null;
@@ -450,6 +493,7 @@ public sealed partial class GameClient
                 if (item.Count + temp.Count <= temp.Info.StackSize)
                 {
                     temp.Count += item.Count;
+                    CheckAutoStore(temp);
                     return temp;
                 }
 
@@ -458,13 +502,47 @@ public sealed partial class GameClient
             }
         }
 
+        if (item.Info != null)
+        {
+            if (item.Info.Type == ItemType.Potion || item.Info.Type == ItemType.Scroll ||
+                (item.Info.Type == ItemType.Script && item.Info.Effect == 1))
+            {
+                for (int i = 0; i < BeltIdx - 2 && i < _inventory.Length; i++)
+                {
+                    if (_inventory[i] != null) continue;
+                    _inventory[i] = item;
+                    CheckAutoStore(item);
+                    return item;
+                }
+            }
+            else if (item.Info.Type == ItemType.Amulet)
+            {
+                for (int i = 4; i < BeltIdx && i < _inventory.Length; i++)
+                {
+                    if (_inventory[i] != null) continue;
+                    _inventory[i] = item;
+                    CheckAutoStore(item);
+                    return item;
+                }
+            }
+            else
+            {
+                for (int i = BeltIdx; i < _inventory.Length; i++)
+                {
+                    if (_inventory[i] != null) continue;
+                    _inventory[i] = item;
+                    CheckAutoStore(item);
+                    return item;
+                }
+            }
+        }
+
         for (int i = 0; i < _inventory.Length; i++)
         {
-            if (_inventory[i] == null)
-            {
-                _inventory[i] = item;
-                return item;
-            }
+            if (_inventory[i] != null) continue;
+            _inventory[i] = item;
+            CheckAutoStore(item);
+            return item;
         }
 
         return null;

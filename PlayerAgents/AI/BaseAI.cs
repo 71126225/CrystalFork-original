@@ -855,6 +855,43 @@ public class BaseAI
         await ResolveNearbyGoodsAsync();
     }
 
+    private async Task HandleStorageAsync()
+    {
+        bool needToStore = Client.PendingStorageItems.Any();
+        bool storageLoaded = Client.Storage != null;
+
+        if (!needToStore && storageLoaded)
+        {
+            Client.Log("Storage already loaded, checking stored items for upgrades");
+            await Client.CheckStorageForUpgradesAsync();
+            return;
+        }
+
+        if (!Client.TryFindNearestStorageNpc(out var npcId, out var loc, out var entry))
+            return;
+
+        if (entry != null)
+            Client.Log($"I am heading to {entry.Name} at {loc.X}, {loc.Y} to access storage");
+
+        Client.UpdateAction("accessing storage...");
+        bool reached = await Client.MoveWithinRangeAsync(loc, npcId, Globals.DataRange, NpcInteractionType.Storing, WalkDelay, entry?.MapFile);
+        if (!reached) return;
+
+        if (npcId == 0 && entry != null)
+            npcId = await Client.ResolveNpcIdAsync(entry);
+        if (npcId == 0) return;
+
+        await Client.OpenStorageAsync(npcId);
+
+        foreach (var item in Client.PendingStorageItems.ToList())
+        {
+            if (!Client.HasFreeStorageSpace()) break;
+            await Client.StoreItemAsync(item);
+        }
+
+        await Client.CheckStorageForUpgradesAsync();
+    }
+
     private async Task<bool> HandleEquipmentRepairsAsync(bool force = false, bool keepIgnore = false)
     {
         bool cantAfford = false;
@@ -1055,6 +1092,7 @@ public class BaseAI
         Client.IgnoreNpcInteractions = true;
         try
         {
+            await HandleStorageAsync();
             await HandleInventoryAsync(true, true);
             bool cantAfford = await HandleEquipmentRepairsAsync(true, true);
             UpdatePendingBuyTypes();
