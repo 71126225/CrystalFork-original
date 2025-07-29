@@ -287,6 +287,35 @@ public sealed partial class GameClient
         return false;
     }
 
+    private int GetDesiredItemBuyCount(DesiredItem desired, UserItem template)
+    {
+        if (_inventory == null) return 0;
+
+        var matching = _inventory.Where(i => i != null && MatchesDesiredItem(i, desired)).ToList();
+
+        int count = matching.Count;
+        if (_equipment != null && desired.Count.HasValue)
+            count += _equipment.Count(i => i != null && MatchesDesiredItem(i!, desired));
+
+        if (desired.Count.HasValue)
+        {
+            int needed = desired.Count.Value - count;
+            return needed > 0 ? needed : 0;
+        }
+
+        if (desired.WeightFraction > 0)
+        {
+            int requiredWeight = (int)Math.Ceiling(GetMaxBagWeight() * desired.WeightFraction);
+            int currentWeight = matching.Sum(i => i.Weight);
+            int remainingWeight = requiredWeight - currentWeight;
+            if (remainingWeight <= 0) return 0;
+            int needed = (int)Math.Ceiling((double)remainingWeight / template.Weight);
+            return needed > 0 ? needed : 0;
+        }
+
+        return 1;
+    }
+
     private bool WantsToBuy(ItemInfo info)
     {
         if (info == null) return false;
@@ -521,6 +550,49 @@ public sealed partial class GameClient
         }, out id, out location, out entry);
     }
 
+    private HashSet<int> GetBestPotionIndices(List<UserItem> goods)
+    {
+        int maxHP = GetMaxHP();
+        int maxMP = GetMaxMP();
+        UserItem? bestHp = null;
+        int bestHpHeal = -1;
+        UserItem? bestMp = null;
+        int bestMpHeal = -1;
+
+        foreach (var item in goods)
+        {
+            if (item.Info == null || item.Info.Type != ItemType.Potion) continue;
+
+            bool healsHP = item.Info.Stats[Stat.HP] > 0 || item.Info.Stats[Stat.HPRatePercent] > 0;
+            bool healsMP = item.Info.Stats[Stat.MP] > 0 || item.Info.Stats[Stat.MPRatePercent] > 0;
+
+            if (healsHP)
+            {
+                int heal = GetPotionRestoreAmount(item, true);
+                if (heal > bestHpHeal && heal <= maxHP)
+                {
+                    bestHpHeal = heal;
+                    bestHp = item;
+                }
+            }
+
+            if (healsMP)
+            {
+                int heal = GetPotionRestoreAmount(item, false);
+                if (heal > bestMpHeal && heal <= maxMP)
+                {
+                    bestMpHeal = heal;
+                    bestMp = item;
+                }
+            }
+        }
+
+        var indices = new HashSet<int>();
+        if (bestHp?.Info != null) indices.Add(bestHp.Info.Index);
+        if (bestMp?.Info != null) indices.Add(bestMp.Info.Index);
+        return indices;
+    }
+
     private async Task EquipIfBetterAsync(UserItem item)
     {
         if (_equipment == null || item.Info == null) return;
@@ -564,6 +636,8 @@ public sealed partial class GameClient
         foreach (var g in goods)
             Bind(g);
 
+        var bestPotionIndices = GetBestPotionIndices(goods);
+
         var orderedGoods = goods
             .OrderByDescending(g => GetBestItemScore(g))
             .ToList();
@@ -576,6 +650,9 @@ public sealed partial class GameClient
         {
             if (item.Info == null) continue;
 
+            if (item.Info.Type == ItemType.Potion && bestPotionIndices.Count > 0 && !bestPotionIndices.Contains(item.Info.Index))
+                continue;
+
             bool need = false;
             int buyCount = 1;
 
@@ -585,6 +662,7 @@ public sealed partial class GameClient
                 need = buyCount > 0;
             }
 
+            DesiredItem? matchedDesired = null;
             if (!need && desired != null)
             {
                 foreach (var d in desired)
@@ -592,6 +670,8 @@ public sealed partial class GameClient
                     if (MatchesDesiredItem(item, d) && NeedMoreOfDesiredItem(d))
                     {
                         need = true;
+                        matchedDesired = d;
+                        buyCount = Math.Max(buyCount, GetDesiredItemBuyCount(d, item));
                         break;
                     }
                 }
@@ -609,9 +689,11 @@ public sealed partial class GameClient
                     if (freeSlots <= 0 || currentWeight + item.Weight > maxWeight)
                         break;
 
+                    ushort qty = (ushort)Math.Min(buyCount, item.Info.StackSize);
+
                     if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var npc))
-                        Log($"I am buying {item.Info.FriendlyName} from {npc.Name} for {item.Info.Price} gold");
-                    await BuyItemAsync(item.UniqueID, 1, type);
+                        Log($"I am buying {qty}x {item.Info.FriendlyName} from {npc.Name} for {item.Info.Price} gold each");
+                    await BuyItemAsync(item.UniqueID, qty, type);
                     await Task.Delay(50);
                     if (_lastPickedItem != null && _lastPickedItem.Info != null &&
                         _lastPickedItem.Info.Index == item.Info.Index && CanBeEquipped(_lastPickedItem.Info))
@@ -627,12 +709,13 @@ public sealed partial class GameClient
                     }
 
                     freeSlots--;
-                    currentWeight += item.Weight;
+                    currentWeight += item.Weight * qty;
+                    buyCount -= qty;
 
                     if (item.Info.Type == ItemType.Ring || item.Info.Type == ItemType.Bracelet)
                         buyCount = GetUpgradeCount(item.Info);
-                    else
-                        buyCount = 0;
+                    else if (item.Info.Type == ItemType.Potion && matchedDesired != null && NeedMoreOfDesiredItem(matchedDesired))
+                        buyCount = GetDesiredItemBuyCount(matchedDesired, item);
                 }
             }
             else if (need)
