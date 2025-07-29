@@ -467,11 +467,25 @@ public sealed partial class GameClient
                 break;
             case S.Chat chat:
                 HandleTradeFailChat(chat.Message);
+                if (chat.Type == ChatType.System &&
+                    (chat.Message.Contains("Can not pick up", StringComparison.OrdinalIgnoreCase) ||
+                     chat.Message.Contains("cannot pick up", StringComparison.OrdinalIgnoreCase) ||
+                     chat.Message.Contains("do not own this item", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PickUpFailed?.Invoke();
+                }
                 if (chat.Type == ChatType.WhisperIn)
                     HandleDebugCommand(chat.Message);
                 break;
             case S.ObjectChat oc:
                 HandleTradeFailChat(oc.Text);
+                if (oc.Type == ChatType.System &&
+                    (oc.Text.Contains("Can not pick up", StringComparison.OrdinalIgnoreCase) ||
+                     oc.Text.Contains("cannot pick up", StringComparison.OrdinalIgnoreCase) ||
+                     oc.Text.Contains("do not own this item", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PickUpFailed?.Invoke();
+                }
                 if (oc.Type == ChatType.WhisperIn)
                     HandleDebugCommand(oc.Text);
                 break;

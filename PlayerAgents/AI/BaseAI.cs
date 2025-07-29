@@ -46,6 +46,7 @@ public class BaseAI
         Client.MovementEntryRemoved += OnMovementEntryRemoved;
         Client.ExpRateSaved += OnExpRateSaved;
         Client.WhisperCommandReceived += OnWhisperCommand;
+        Client.PickUpFailed += OnPickUpFailed;
     }
 
     private void OnMovementEntryRemoved()
@@ -80,6 +81,22 @@ public class BaseAI
                 _nextBestMapCheck = DateTime.UtcNow;
                 Client.Log($"Best map set to {_currentBestMap}");
             }
+        }
+    }
+
+    private void OnPickUpFailed()
+    {
+        var loc = Client.CurrentLocation;
+        foreach (var obj in Client.TrackedObjects.Values)
+        {
+            if (obj.Type == ObjectType.Item && obj.Location == loc)
+                _itemRetryTimes[(obj.Location, obj.Name)] = DateTime.UtcNow + ItemRetryDelay;
+        }
+        if (_currentTarget != null &&
+            _currentTarget.Type == ObjectType.Item &&
+            _currentTarget.Location == loc)
+        {
+            _currentTarget = null;
         }
     }
 
@@ -1520,7 +1537,7 @@ public class BaseAI
 
         var current = Client.CurrentLocation;
         var target = FindClosestTarget(current, out int dist);
-        if (target != null && target.Type == ObjectType.Monster)
+        if (target != null && target.Type == ObjectType.Monster && dist <= 2)
         {
             Client.CancelHarvesting();
             if (dist <= 1 && DateTime.UtcNow >= _nextAttackTime)

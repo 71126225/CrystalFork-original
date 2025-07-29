@@ -27,6 +27,7 @@ public sealed partial class GameClient
     public event Action? MovementEntryRemoved;
     public event Action<double>? ExpRateSaved;
     public event Action<string>? WhisperCommandReceived;
+    public event Action? PickUpFailed;
     private TcpClient? _client;
     private NetworkStream? _stream;
     private long _pingTime;
@@ -1339,7 +1340,7 @@ public sealed partial class GameClient
                 break;
 
             if (_trackedObjects.Values.Any(o => o.Type == ObjectType.Monster && !o.Dead &&
-                Functions.MaxDistance(_currentLocation, o.Location) <= 1))
+                Functions.MaxDistance(_currentLocation, o.Location) <= 2))
             {
                 await Task.Delay(HarvestDelay);
                 continue;
