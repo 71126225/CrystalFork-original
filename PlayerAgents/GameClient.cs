@@ -108,7 +108,7 @@ public sealed partial class GameClient
     private readonly ConcurrentDictionary<System.Drawing.Point, int> _blockingCells = new();
 
     private static bool IsBlocking(TrackedObject obj) =>
-        !obj.Dead && (obj.Type == ObjectType.Player || obj.Type == ObjectType.Monster || obj.Type == ObjectType.Merchant);
+        !obj.Dead && !obj.Hidden && (obj.Type == ObjectType.Player || obj.Type == ObjectType.Monster || obj.Type == ObjectType.Merchant);
 
     private void AddTrackedObject(TrackedObject obj)
     {
@@ -142,6 +142,27 @@ public sealed partial class GameClient
                 var oldLoc = obj.Location;
                 if (_blockingCells.AddOrUpdate(oldLoc, 0, (_, v) => Math.Max(0, v - 1)) == 0)
                     _blockingCells.TryRemove(oldLoc, out _);
+            }
+        }
+    }
+
+    private void SetTrackedObjectHidden(uint id, bool hidden)
+    {
+        if (_trackedObjects.TryGetValue(id, out var obj))
+        {
+            bool wasBlocking = IsBlocking(obj);
+            obj.Hidden = hidden;
+            bool isBlocking = IsBlocking(obj);
+
+            if (wasBlocking && !isBlocking)
+            {
+                var loc = obj.Location;
+                if (_blockingCells.AddOrUpdate(loc, 0, (_, v) => Math.Max(0, v - 1)) == 0)
+                    _blockingCells.TryRemove(loc, out _);
+            }
+            else if (!wasBlocking && isBlocking)
+            {
+                _blockingCells.AddOrUpdate(obj.Location, 1, (_, v) => v + 1);
             }
         }
     }

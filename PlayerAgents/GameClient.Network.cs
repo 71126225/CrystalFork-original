@@ -425,6 +425,12 @@ public sealed partial class GameClient
                         _blockingCells.AddOrUpdate(objRev.Location, 1, (_, v) => v + 1);
                 }
                 break;
+            case S.ObjectHide oh:
+                SetTrackedObjectHidden(oh.ObjectID, true);
+                break;
+            case S.ObjectShow os:
+                SetTrackedObjectHidden(os.ObjectID, false);
+                break;
             case S.NewItemInfo nii:
                 ItemInfoDict[nii.Info.Index] = nii.Info;
                 break;
