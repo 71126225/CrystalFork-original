@@ -165,6 +165,7 @@ public class BaseAI
     private static readonly TimeSpan UnreachableItemRetryDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan DroppedItemRetryDelay = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan MonsterIgnoreDelay = TimeSpan.FromSeconds(10);
+    private const int DangerousMonsterRange = 3;
     private bool _sentRevive;
     private bool _sellingItems;
     private bool _repairingItems;
@@ -289,6 +290,23 @@ public class BaseAI
         int maxHP = Client.GetMaxHP();
         int maxMP = Client.GetMaxMP();
 
+        if (_currentTarget != null && _currentTarget.Type == ObjectType.Monster)
+        {
+            int dmg = Client.MonsterMemory.GetDamage(_currentTarget.Name);
+            if (dmg > 0 && Client.HP <= dmg)
+            {
+                var pot = Client.FindPotion(true);
+                if (pot != null)
+                {
+                    await Client.UseItemAsync(pot);
+                    string name = pot.Info?.FriendlyName ?? "HP potion";
+                    Client.Log($"Used {name}");
+                    _nextPotionTime = DateTime.UtcNow + TimeSpan.FromSeconds(1);
+                    return;
+                }
+            }
+        }
+
         if (Client.HP < maxHP)
         {
             var pot = Client.FindPotion(true);
@@ -364,6 +382,7 @@ public class BaseAI
                 if (_monsterIgnoreTimes.TryGetValue(obj.Id, out var ignore) && DateTime.UtcNow < ignore)
                     continue;
                 if (obj.Dead || obj.Hidden) continue;
+                if (IsDangerousMonster(obj)) continue;
                 if (IgnoredAIs.Contains(obj.AI)) continue;
                 if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != Client.ObjectId)
                     continue;
@@ -432,6 +451,50 @@ public class BaseAI
     {
         var path = await FindPathAsync(map, current, target.Location, target.Id, radius);
         return path.Count > 0 && await MoveAlongPathAsync(path, target.Location);
+    }
+
+    private bool IsDangerousMonster(TrackedObject monster)
+    {
+        int dmg = Client.MonsterMemory.GetDamage(monster.Name);
+        return dmg > Client.HP / 2;
+    }
+
+    private async Task<bool> RetreatFromMonsterAsync(MapData map, Point current, TrackedObject monster)
+    {
+        var dir = Functions.DirectionFromPoint(monster.Location, current);
+        var obstacles = MovementHelper.BuildObstacles(Client);
+        Point dest = current;
+        for (int i = 1; i <= DangerousMonsterRange; i++)
+        {
+            var p = Functions.PointMove(current, dir, i);
+            if (!map.IsWalkable(p.X, p.Y) || obstacles.Contains(p)) break;
+            dest = p;
+        }
+        if (dest != current)
+        {
+            var path = await FindPathAsync(map, current, dest);
+            if (path.Count > 0)
+                return await MoveAlongPathAsync(path, dest);
+        }
+        return false;
+    }
+
+    private async Task<bool> AvoidDangerousMonstersAsync(MapData map, Point current)
+    {
+        foreach (var obj in Client.TrackedObjects.Values)
+        {
+            if (obj.Type != ObjectType.Monster || obj.Dead || obj.Hidden) continue;
+            if (!IsDangerousMonster(obj)) continue;
+            int dist = Functions.MaxDistance(current, obj.Location);
+            if (dist <= DangerousMonsterRange)
+            {
+                _monsterIgnoreTimes[obj.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
+                _currentTarget = null;
+                bool moved = await RetreatFromMonsterAsync(map, current, obj);
+                return moved;
+            }
+        }
+        return false;
     }
 
     private Task<bool> TravelToMapAsync(string destMapFile)
@@ -1189,6 +1252,11 @@ public class BaseAI
             }
 
             current = Client.CurrentLocation;
+            if (await AvoidDangerousMonstersAsync(map, current))
+            {
+                await Task.Delay(WalkDelay);
+                continue;
+            }
             if (_currentTarget != null && !Client.TrackedObjects.ContainsKey(_currentTarget.Id))
             {
                 _lostTargetLocation = _currentTarget.Location;

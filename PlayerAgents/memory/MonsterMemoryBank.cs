@@ -73,4 +73,13 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
         if (changed)
             Save();
     }
+
+    public int GetDamage(string monsterName)
+    {
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            return _lookup.TryGetValue(monsterName, out var entry) ? entry.Damage : 0;
+        }
+    }
 }
