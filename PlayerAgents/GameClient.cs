@@ -556,8 +556,12 @@ public sealed partial class GameClient
         int maxMP = GetMaxMP();
         UserItem? bestHp = null;
         int bestHpHeal = -1;
+        UserItem? fallbackHp = null;
+        int fallbackHpHeal = int.MaxValue;
         UserItem? bestMp = null;
         int bestMpHeal = -1;
+        UserItem? fallbackMp = null;
+        int fallbackMpHeal = int.MaxValue;
 
         foreach (var item in goods)
         {
@@ -574,6 +578,11 @@ public sealed partial class GameClient
                     bestHpHeal = heal;
                     bestHp = item;
                 }
+                if (heal < fallbackHpHeal)
+                {
+                    fallbackHpHeal = heal;
+                    fallbackHp = item;
+                }
             }
 
             if (healsMP)
@@ -584,8 +593,16 @@ public sealed partial class GameClient
                     bestMpHeal = heal;
                     bestMp = item;
                 }
+                if (heal < fallbackMpHeal)
+                {
+                    fallbackMpHeal = heal;
+                    fallbackMp = item;
+                }
             }
         }
+
+        if (bestHp == null) bestHp = fallbackHp;
+        if (bestMp == null) bestMp = fallbackMp;
 
         var indices = new HashSet<int>();
         if (bestHp?.Info != null) indices.Add(bestHp.Info.Index);
