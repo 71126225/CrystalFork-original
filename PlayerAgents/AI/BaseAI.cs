@@ -84,15 +84,37 @@ public class BaseAI
     protected virtual Stat[] OffensiveStats => Array.Empty<Stat>();
     protected virtual Stat[] DefensiveStats => Array.Empty<Stat>();
 
+    private bool _needsMpPotions;
     private IReadOnlyList<DesiredItem>? _baseDesiredItems;
-    protected virtual IReadOnlyList<DesiredItem> DesiredItems =>
-        _baseDesiredItems ??= new DesiredItem[]
+    protected virtual IReadOnlyList<DesiredItem> DesiredItems
+    {
+        get
         {
-            new DesiredItem(ItemType.Potion, hpPotion: true, weightFraction: HpPotionWeightFraction),
-            new DesiredItem(ItemType.Potion, hpPotion: false, weightFraction: MpPotionWeightFraction),
-            new DesiredItem(ItemType.Torch, count: 1),
-            new DesiredItem(ItemType.Scroll, shape: 1, count: 1)
+            bool needsMp = Client.Magics.Any(m => m.BaseCost > 0 || m.LevelCost > 0);
+            if (_baseDesiredItems == null || needsMp != _needsMpPotions)
+            {
+                _needsMpPotions = needsMp;
+                _baseDesiredItems = BuildDesiredItems(needsMp);
+            }
+            return _baseDesiredItems;
+        }
+    }
+
+    private IReadOnlyList<DesiredItem> BuildDesiredItems(bool needsMpPotions)
+    {
+        var list = new List<DesiredItem>
+        {
+            new DesiredItem(ItemType.Potion, hpPotion: true, weightFraction: HpPotionWeightFraction)
         };
+
+        if (needsMpPotions)
+            list.Add(new DesiredItem(ItemType.Potion, hpPotion: false, weightFraction: MpPotionWeightFraction));
+
+        list.Add(new DesiredItem(ItemType.Torch, count: 1));
+        list.Add(new DesiredItem(ItemType.Scroll, shape: 1, count: 1));
+
+        return list.ToArray();
+    }
     private DateTime _nextEquipCheck = DateTime.UtcNow;
     private DateTime _nextAttackTime = DateTime.UtcNow;
     private DateTime _nextPotionTime = DateTime.MinValue;
