@@ -18,6 +18,7 @@ public sealed partial class GameClient
     private readonly NpcMemoryBank _npcMemory;
     private readonly MapMovementMemoryBank _movementMemory;
     private readonly MapExpRateMemoryBank _expRateMemory;
+    private readonly MonsterMemoryBank _monsterMemory;
     private readonly NavDataManager _navDataManager;
     private readonly IAgentLogger? _logger;
     private readonly CancellationTokenSource _cts = new();
@@ -786,6 +787,7 @@ public sealed partial class GameClient
     public int MP => _mp;
     public MapMovementMemoryBank MovementMemory => _movementMemory;
     public MapExpRateMemoryBank ExpRateMemory => _expRateMemory;
+    public MonsterMemoryBank MonsterMemory => _monsterMemory;
     public Func<UserItem, EquipmentSlot, int>? ItemScoreFunc { get; set; }
     public Func<IReadOnlyList<DesiredItem>>? DesiredItemsProvider { get; set; }
     public CancellationToken CancellationToken => _cts.Token;
@@ -811,12 +813,13 @@ public sealed partial class GameClient
         ReportStatus();
     }
 
-    public GameClient(Config config, NpcMemoryBank npcMemory, MapMovementMemoryBank movementMemory, MapExpRateMemoryBank expRateMemory, NavDataManager navDataManager, IAgentLogger? logger = null)
+    public GameClient(Config config, NpcMemoryBank npcMemory, MapMovementMemoryBank movementMemory, MapExpRateMemoryBank expRateMemory, MonsterMemoryBank monsterMemory, NavDataManager navDataManager, IAgentLogger? logger = null)
     {
         _config = config;
         _npcMemory = npcMemory;
         _movementMemory = movementMemory;
         _expRateMemory = expRateMemory;
+        _monsterMemory = monsterMemory;
         _navDataManager = navDataManager;
         _logger = logger;
     }
@@ -1881,11 +1884,18 @@ public sealed partial class GameClient
         bool hasSell = keys.Overlaps(new[] { "@SELL", "@BUYSELL", "@BUYSELLNEW" });
         bool hasRepair = keys.Contains("@REPAIR");
         bool hasSpecialRepair = keys.Contains("@SREPAIR");
+        bool hasStorage = keys.Contains("@STORAGE");
 
         string? buyKey = null;
         string? sellKey = null;
         string? repairKey = null;
         string? specialRepairKey = null;
+
+        if (hasStorage && !entry.CanStore)
+        {
+            entry.CanStore = true;
+            changed = true;
+        }
 
         if (hasBuy)
         {

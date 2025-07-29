@@ -237,6 +237,8 @@ public sealed partial class GameClient
                 break;
             case S.ObjectMonster om:
                 AddTrackedObject(new TrackedObject(om.ObjectID, ObjectType.Monster, om.Name, om.Location, om.Direction, om.AI, om.Dead));
+                if (!string.IsNullOrEmpty(_currentMapFile))
+                    _monsterMemory.AddSeenOnMap(om.Name, _currentMapFile);
                 break;
             case S.ObjectNPC on:
                 AddTrackedObject(new TrackedObject(on.ObjectID, ObjectType.Merchant, on.Name, on.Location, on.Direction));
@@ -345,6 +347,8 @@ public sealed partial class GameClient
                 {
                     string name = _trackedObjects.TryGetValue(_lastStruckAttacker.Value, out var atk) ? atk.Name : "Unknown";
                     Log($"{name} has attacked me for {-di.Damage} damage");
+                    int recordDamage = -di.Damage + GetStatTotal(Stat.MaxAC);
+                    _monsterMemory.RecordDamage(name, recordDamage);
                     _lastStruckAttacker = null;
                 }
                 else if (_lastAttackTarget.HasValue && di.ObjectID == _lastAttackTarget.Value)
@@ -607,6 +611,16 @@ public sealed partial class GameClient
                 break;
             case S.NPCPearlGoods pearlGoods:
                 ProcessNpcGoods(pearlGoods.List, pearlGoods.Type);
+                break;
+            case S.NPCStorage:
+                if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var npcStoreEntry))
+                {
+                    if (!npcStoreEntry.CanStore)
+                    {
+                        npcStoreEntry.CanStore = true;
+                        _npcMemory.SaveChanges();
+                    }
+                }
                 break;
             case S.NPCSell:
                 if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var npcSellEntry) && npcSellEntry.CanSell)

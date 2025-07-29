@@ -36,6 +36,7 @@ public sealed class NpcEntry
     public bool CanSell { get; set; }
     public bool CanRepair { get; set; }
     public bool CanSpecialRepair { get; set; }
+    public bool CanStore { get; set; }
     [JsonPropertyName("BuyItemIndexes")]
     public List<BuyItem>? BuyItems { get; set; }
     public List<ItemType>? SellItemTypes { get; set; }
