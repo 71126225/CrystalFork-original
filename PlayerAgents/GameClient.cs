@@ -618,6 +618,13 @@ public sealed partial class GameClient
                     {
                         await EquipIfBetterAsync(_lastPickedItem);
                     }
+                    if (_lastPickedItem != null && _lastPickedItem.Info != null &&
+                        _lastPickedItem.Info.Index == item.Info.Index &&
+                        _lastPickedItem.Info.Type == ItemType.Book && CanUseBook(_lastPickedItem))
+                    {
+                        await UseItemAsync(_lastPickedItem);
+                        await Task.Delay(200);
+                    }
 
                     freeSlots--;
                     currentWeight += item.Weight;
