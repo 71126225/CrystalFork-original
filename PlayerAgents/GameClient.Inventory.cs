@@ -10,7 +10,7 @@ using PlayerAgents.Map;
 
 public sealed partial class GameClient
 {
-    private int GetNpcTravelDistance(NpcEntry entry)
+    private int GetNpcTravelDistance(NpcEntry entry, int maxDistance = int.MaxValue)
     {
         if (string.IsNullOrEmpty(_currentMapFile))
             return int.MaxValue;
@@ -28,6 +28,8 @@ public sealed partial class GameClient
         foreach (var step in travel)
         {
             dist += Functions.MaxDistance(current, new Point(step.SourceX, step.SourceY));
+            if (dist > maxDistance)
+                return dist;
             current = new Point(step.DestinationX, step.DestinationY);
         }
         dist += Functions.MaxDistance(current, new Point(entry.X, entry.Y));
@@ -52,7 +54,7 @@ public sealed partial class GameClient
             if (IsNpcIgnored(e)) continue;
             if (!match(e)) continue;
 
-            int dist = GetNpcTravelDistance(e);
+            int dist = GetNpcTravelDistance(e, bestDist);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -97,7 +99,7 @@ public sealed partial class GameClient
             var types = match(e);
             if (types.Count == 0) continue;
 
-            int dist = GetNpcTravelDistance(e);
+            int dist = GetNpcTravelDistance(e, bestDist);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -231,7 +233,7 @@ public sealed partial class GameClient
             if (e.BuyItems.All(b => ItemInfoDict.ContainsKey(b.Index))) continue;
             if (IsNpcIgnored(e)) continue;
 
-            int dist = GetNpcTravelDistance(e);
+            int dist = GetNpcTravelDistance(e, Math.Min(maxDistance, bestDist));
             if (dist > maxDistance || dist >= bestDist) continue;
 
             bestDist = dist;

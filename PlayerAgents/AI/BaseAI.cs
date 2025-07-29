@@ -107,7 +107,7 @@ public class BaseAI
     protected virtual TimeSpan TravelPathFindInterval => TimeSpan.FromSeconds(1);
     protected virtual TimeSpan FailedTravelPathFindDelay => TimeSpan.FromSeconds(1);
     protected virtual TimeSpan EquipCheckInterval => TimeSpan.FromSeconds(5);
-    protected virtual int GoodsResolveDistance => 500;
+    protected virtual int GoodsResolveDistance => 100;
     protected virtual double HpPotionWeightFraction => 0;
     protected virtual double MpPotionWeightFraction => 0;
     protected virtual Stat[] OffensiveStats => Array.Empty<Stat>();
