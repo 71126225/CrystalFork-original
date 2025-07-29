@@ -39,6 +39,10 @@ public sealed partial class GameClient
         {
             FireAndForget(SendInventoryAsync(sender));
         }
+        else if (msg.Equals("sell", StringComparison.OrdinalIgnoreCase))
+        {
+            WhisperCommandReceived?.Invoke("sell");
+        }
         else if (msg.StartsWith("item ", StringComparison.OrdinalIgnoreCase))
         {
             var parts2 = msg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);

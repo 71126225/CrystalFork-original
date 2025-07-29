@@ -25,6 +25,7 @@ public sealed partial class GameClient
     private CancellationTokenSource? _movementDeleteCts;
     public event Action? MovementEntryRemoved;
     public event Action<double>? ExpRateSaved;
+    public event Action<string>? WhisperCommandReceived;
     private TcpClient? _client;
     private NetworkStream? _stream;
     private long _pingTime;

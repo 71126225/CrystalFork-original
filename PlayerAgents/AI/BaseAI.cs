@@ -45,6 +45,7 @@ public class BaseAI
         Client.DesiredItemsProvider = () => DesiredItems;
         Client.MovementEntryRemoved += OnMovementEntryRemoved;
         Client.ExpRateSaved += OnExpRateSaved;
+        Client.WhisperCommandReceived += OnWhisperCommand;
     }
 
     private void OnMovementEntryRemoved()
@@ -62,6 +63,12 @@ public class BaseAI
             _currentBestMap = null;
             _nextBestMapCheck = DateTime.UtcNow;
         }
+    }
+
+    private void OnWhisperCommand(string command)
+    {
+        if (command.Equals("sell", StringComparison.OrdinalIgnoreCase))
+            _refreshInventory = true;
     }
 
     protected virtual int WalkDelay => 600;
