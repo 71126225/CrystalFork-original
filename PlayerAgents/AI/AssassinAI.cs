@@ -1,4 +1,7 @@
 using Shared;
+using System.Drawing;
+using System.Threading.Tasks;
+using PlayerAgents.Map;
 
 public sealed class AssassinAI : BaseAI
 {
@@ -10,4 +13,14 @@ public sealed class AssassinAI : BaseAI
         { Stat.MinDC, Stat.MaxDC, Stat.AttackSpeed, Stat.Accuracy, Stat.Agility };
     protected override Stat[] DefensiveStats { get; } = new[]
         { Stat.MinAC, Stat.MaxAC, Stat.Accuracy, Stat.Agility };
+
+    protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
+    {
+        await base.AttackMonsterAsync(monster, current);
+    }
+
+    protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)
+    {
+        return await base.MoveToTargetAsync(map, current, target, radius);
+    }
 }

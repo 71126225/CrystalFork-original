@@ -388,6 +388,12 @@ public class BaseAI
         return moved;
     }
 
+    protected virtual async Task<bool> MoveToTargetAsync(PlayerAgents.Map.MapData map, Point current, TrackedObject target, int radius = 1)
+    {
+        var path = await FindPathAsync(map, current, target.Location, target.Id, radius);
+        return path.Count > 0 && await MoveAlongPathAsync(path, target.Location);
+    }
+
     private Task<bool> TravelToMapAsync(string destMapFile)
     {
         if (DateTime.UtcNow < _travelPauseUntil)
@@ -1215,8 +1221,7 @@ public class BaseAI
                 {
                     if (distance > 1)
                     {
-                        var path = await FindPathAsync(map, current, closest.Location, closest.Id);
-                        bool moved = path.Count > 0 && await MoveAlongPathAsync(path, closest.Location);
+                        bool moved = await MoveToTargetAsync(map, current, closest);
                         if (!moved)
                         {
                             // ignore unreachable targets
@@ -1227,11 +1232,7 @@ public class BaseAI
                     }
                     else if (DateTime.UtcNow >= _nextAttackTime)
                     {
-                        var dir = Functions.DirectionFromPoint(current, closest.Location);
-                        await Client.AttackAsync(dir);
-                        _lastMoveOrAttackTime = DateTime.UtcNow;
-                        _stationarySince = DateTime.UtcNow; // reset turn timer when attacking
-                        _nextAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
+                        await AttackMonsterAsync(closest, current);
                     }
                 }
             }
@@ -1466,6 +1467,15 @@ public class BaseAI
         return true;
     }
 
+    protected virtual async Task AttackMonsterAsync(TrackedObject monster, Point current)
+    {
+        var dir = Functions.DirectionFromPoint(current, monster.Location);
+        await Client.AttackAsync(dir);
+        _lastMoveOrAttackTime = DateTime.UtcNow;
+        _stationarySince = DateTime.UtcNow; // reset turn timer when attacking
+        _nextAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
+    }
+
     private async Task<bool> HandleHarvestingAsync()
     {
         if (!Client.IsHarvesting) return false;
@@ -1475,13 +1485,7 @@ public class BaseAI
         if (target != null && target.Type == ObjectType.Monster && dist <= 1)
         {
             if (DateTime.UtcNow >= _nextAttackTime)
-            {
-                var dir = Functions.DirectionFromPoint(current, target.Location);
-                await Client.AttackAsync(dir);
-                _lastMoveOrAttackTime = DateTime.UtcNow;
-                _stationarySince = DateTime.UtcNow; // reset turn timer when attacking during harvest
-                _nextAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
-            }
+                await AttackMonsterAsync(target, current);
         }
         await Task.Delay(WalkDelay);
         return true;
