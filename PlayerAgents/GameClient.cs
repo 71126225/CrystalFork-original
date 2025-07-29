@@ -579,7 +579,7 @@ public sealed partial class GameClient
             bool need = false;
             int buyCount = 1;
 
-            if (_equipment != null && item.Info.Type != ItemType.Torch)
+            if (_equipment != null && item.Info.Type != ItemType.Torch && CanBeEquipped(item.Info))
             {
                 buyCount = GetUpgradeCount(item.Info);
                 need = buyCount > 0;
