@@ -95,6 +95,19 @@ public sealed partial class GameClient
         await SendAsync(attack);
     }
 
+    public async Task RangeAttackAsync(MirDirection direction, Point targetLocation, uint targetId)
+    {
+        if (_stream == null) return;
+        var attack = new C.RangeAttack
+        {
+            Direction = direction,
+            Location = _currentLocation,
+            TargetID = targetId,
+            TargetLocation = targetLocation
+        };
+        await SendAsync(attack);
+    }
+
     public async Task TurnAsync(MirDirection direction)
     {
         if (_stream == null) return;

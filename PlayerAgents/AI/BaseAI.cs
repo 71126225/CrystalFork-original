@@ -68,7 +68,19 @@ public class BaseAI
     private void OnWhisperCommand(string command)
     {
         if (command.Equals("sell", StringComparison.OrdinalIgnoreCase))
+        {
             _refreshInventory = true;
+        }
+        else if (command.StartsWith("bestmap", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = command.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2)
+            {
+                _currentBestMap = parts[1];
+                _nextBestMapCheck = DateTime.UtcNow;
+                Client.Log($"Best map set to {_currentBestMap}");
+            }
+        }
     }
 
     protected virtual int WalkDelay => 600;
@@ -1467,13 +1479,18 @@ public class BaseAI
         return true;
     }
 
+    protected void RecordAttackTime()
+    {
+        _lastMoveOrAttackTime = DateTime.UtcNow;
+        _stationarySince = _lastMoveOrAttackTime;
+        _nextAttackTime = _lastMoveOrAttackTime + TimeSpan.FromMilliseconds(AttackDelay);
+    }
+
     protected virtual async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
         var dir = Functions.DirectionFromPoint(current, monster.Location);
         await Client.AttackAsync(dir);
-        _lastMoveOrAttackTime = DateTime.UtcNow;
-        _stationarySince = DateTime.UtcNow; // reset turn timer when attacking
-        _nextAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
+        RecordAttackTime();
     }
 
     private async Task<bool> HandleHarvestingAsync()

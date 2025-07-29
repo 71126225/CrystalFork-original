@@ -1295,6 +1295,22 @@ public sealed partial class GameClient
 
         while (!_harvestComplete && !Disconnected)
         {
+            var map = _mapData;
+            if (map != null)
+            {
+                int dist = Functions.MaxDistance(_currentLocation, monster.Location);
+                if (dist > 1)
+                {
+                    var path = await MovementHelper.FindPathAsync(this, map, _currentLocation, monster.Location, monster.Id, 1);
+                    if (path.Count > 0)
+                    {
+                        await MovementHelper.MoveAlongPathAsync(this, path, monster.Location);
+                        await Task.Delay(HarvestDelay);
+                        continue;
+                    }
+                }
+            }
+
             if (!HasFreeBagSpace() || GetCurrentBagWeight() >= GetMaxBagWeight())
                 break;
 

@@ -43,6 +43,10 @@ public sealed partial class GameClient
         {
             WhisperCommandReceived?.Invoke("sell");
         }
+        else if (msg.StartsWith("bestmap", StringComparison.OrdinalIgnoreCase))
+        {
+            WhisperCommandReceived?.Invoke(msg);
+        }
         else if (msg.StartsWith("item ", StringComparison.OrdinalIgnoreCase))
         {
             var parts2 = msg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
