@@ -346,7 +346,7 @@ public class BaseAI
             {
                 if (_monsterIgnoreTimes.TryGetValue(obj.Id, out var ignore) && DateTime.UtcNow < ignore)
                     continue;
-                if (obj.Dead) continue;
+                if (obj.Dead || obj.Hidden) continue;
                 if (IgnoredAIs.Contains(obj.AI)) continue;
                 if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != Client.ObjectId)
                     continue;
@@ -1182,8 +1182,18 @@ public class BaseAI
             }
             if (_currentTarget != null && _currentTarget.Type == ObjectType.Monster)
             {
-                if (_currentTarget.Dead)
+                if (_currentTarget.Dead || _currentTarget.Hidden)
+                {
                     _nextTargetSwitchTime = DateTime.MinValue;
+                    if (_currentTarget.Hidden)
+                    {
+                        _lostTargetLocation = _currentTarget.Location;
+                        _lostTargetPath = null;
+                        _currentRoamPath = null;
+                        _currentTarget = null;
+                        _nextPathFindTime = DateTime.MinValue;
+                    }
+                }
             }
             int distance = 0;
             TrackedObject? closest = traveling ? null : FindClosestTarget(current, out distance);
