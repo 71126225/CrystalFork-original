@@ -314,7 +314,7 @@ public class BaseAI
             if (pot != null)
             {
                 int heal = Client.GetPotionRestoreAmount(pot, true);
-                if (heal > 0 && (maxHP - Client.HP >= heal || hpPercent <= 0.10))
+                if (heal > 0 && (maxHP - Client.HP >= heal || hpPercent <= 0.15))
                 {
                     await Client.UseItemAsync(pot);
                     string name = pot.Info?.FriendlyName ?? "HP potion";
@@ -323,7 +323,7 @@ public class BaseAI
                     return;
                 }
             }
-            else if (DateTime.UtcNow >= _nextTownTeleportTime && hpPercent <= 0.10)
+            else if (DateTime.UtcNow >= _nextTownTeleportTime && hpPercent <= 0.15)
             {
                 var teleport = Client.FindTownTeleport();
                 if (teleport != null)
@@ -336,6 +336,10 @@ public class BaseAI
                     _refreshInventory = true;
                     return;
                 }
+                else
+                {
+                    _refreshInventory = true;
+                }
             }
         }
 
@@ -346,7 +350,7 @@ public class BaseAI
             {
                 int heal = Client.GetPotionRestoreAmount(pot, false);
                 double mpPercent = (double)Client.MP / maxMP;
-                if (heal > 0 && (maxMP - Client.MP >= heal || mpPercent <= 0.10))
+                if (heal > 0 && (maxMP - Client.MP >= heal || mpPercent <= 0.15))
                 {
                     await Client.UseItemAsync(pot);
                     string name = pot.Info?.FriendlyName ?? "MP potion";
@@ -456,7 +460,8 @@ public class BaseAI
     private bool IsDangerousMonster(TrackedObject monster)
     {
         int dmg = Client.MonsterMemory.GetDamage(monster.Name);
-        return dmg > Client.HP / 2;
+        int maxHP = Client.GetMaxHP();
+        return dmg > maxHP / 2;
     }
 
     private async Task<bool> RetreatFromMonsterAsync(MapData map, Point current, TrackedObject monster)
