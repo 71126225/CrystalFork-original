@@ -1402,10 +1402,28 @@ public sealed partial class GameClient
         if (!ItemMatchesPlayer(item)) return;
 
         if (item.Info.RequiredType == RequiredType.Level && _level < item.Info.RequiredAmount)
-            _pendingStorage.Add(item);
+        {
+            if (_equipment == null) return;
+
+            for (int slot = 0; slot < _equipment.Length; slot++)
+            {
+                var equipSlot = (EquipmentSlot)slot;
+                if (!IsItemForSlot(item.Info, equipSlot)) continue;
+
+                var current = _equipment[slot];
+                int newScore = GetItemScore(item, equipSlot);
+                int currentScore = current != null ? GetItemScore(current, equipSlot) : -1;
+
+                if (newScore > currentScore)
+                {
+                    _pendingStorage.Add(item);
+                    break;
+                }
+            }
+        }
     }
 
-    private void ScanInventoryForAutoStore()
+    internal void ScanInventoryForAutoStore()
     {
         if (_inventory == null) return;
         foreach (var it in _inventory)

@@ -47,6 +47,8 @@ public class BaseAI
         Client.ExpRateSaved += OnExpRateSaved;
         Client.WhisperCommandReceived += OnWhisperCommand;
         Client.PickUpFailed += OnPickUpFailed;
+
+        Client.ScanInventoryForAutoStore();
     }
 
     private void OnMovementEntryRemoved()

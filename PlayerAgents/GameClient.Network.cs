@@ -203,7 +203,6 @@ public sealed partial class GameClient
                 _magics.Clear();
                 _magics.AddRange(info.Magics);
                 BindAll(_inventory);
-                ScanInventoryForAutoStore();
                 BindAll(_equipment);
                 MarkStatsDirty();
                 Log($"Logged in as {_playerName}");
