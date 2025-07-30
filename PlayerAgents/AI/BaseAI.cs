@@ -132,9 +132,13 @@ public class BaseAI
 
     private IReadOnlyList<DesiredItem> BuildDesiredItems(bool needsMpPotions)
     {
+        double hpWeight = HpPotionWeightFraction;
+        if (!needsMpPotions)
+            hpWeight += MpPotionWeightFraction;
+
         var list = new List<DesiredItem>
         {
-            new DesiredItem(ItemType.Potion, hpPotion: true, weightFraction: HpPotionWeightFraction)
+            new DesiredItem(ItemType.Potion, hpPotion: true, weightFraction: hpWeight)
         };
 
         if (needsMpPotions)
