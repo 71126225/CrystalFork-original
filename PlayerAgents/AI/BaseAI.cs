@@ -882,7 +882,12 @@ public class BaseAI
             npcId = await Client.ResolveNpcIdAsync(entry);
         if (npcId == 0) return;
 
-        await Client.OpenStorageAsync(npcId);
+        bool opened = await Client.OpenStorageAsync(npcId);
+        if (!opened)
+        {
+            Client.LogError($"Failed to open storage with NPC {entry?.Name ?? npcId.ToString()}");
+            return;
+        }
 
         foreach (var item in Client.PendingStorageItems.ToList())
         {

@@ -297,25 +297,53 @@ public sealed partial class GameClient
     public async Task<bool> StoreItemAsync(UserItem item)
     {
         if (_stream == null || _inventory == null || _storage == null) return false;
-        int from = Array.FindIndex(_inventory, x => x == item);
-        if (from < 0) return false;
+        int from = Array.FindIndex(_inventory, x => x != null && x.UniqueID == item.UniqueID);
+        string itemName = item.Info?.FriendlyName ?? "item";
+        if (from < 0)
+        {
+            LogError($"Failed to locate {itemName} in inventory for storage");
+            _pendingStorage.Remove(item);
+            UpdateLastStorageAction($"Could not find {itemName} in inventory");
+            return false;
+        }
+
         int to = Array.FindIndex(_storage, x => x == null);
-        if (to < 0) return false;
-        Log($"I am storing {_inventory[from]?.Info?.FriendlyName ?? "item"} from slot {from} to storage slot {to}");
+        if (to < 0)
+        {
+            LogError($"No free storage slots available for {itemName}");
+            _pendingStorage.Remove(item);
+            UpdateLastStorageAction($"No free storage slots for {itemName}");
+            return false;
+        }
+
+        Log($"I am storing {itemName} from slot {from} to storage slot {to}");
+        UpdateLastStorageAction($"Storing {itemName} from {from} to {to}");
         var store = new C.StoreItem { From = from, To = to };
         var waitTask = WaitForStoreItemAsync();
-        await SendAsync(store);
         using var cts = new CancellationTokenSource(2000);
         cts.Token.Register(() => _storeItemTcs?.TrySetCanceled());
         try
         {
+            await SendAsync(store);
             bool result = await waitTask;
             if (result)
+            {
                 _pendingStorage.Remove(item);
+                UpdateLastStorageAction($"Stored {itemName} to slot {to}");
+            }
+            else
+            {
+                LogError($"Server rejected store item request for {itemName}");
+                _pendingStorage.Remove(item);
+                UpdateLastStorageAction($"Server rejected storing {itemName}");
+            }
             return result;
         }
         catch (OperationCanceledException)
         {
+            LogError($"Timed out waiting for store item response for {itemName}");
+            _pendingStorage.Remove(item);
+            UpdateLastStorageAction($"Timeout storing {itemName}");
             return false;
         }
     }

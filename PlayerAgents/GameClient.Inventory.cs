@@ -262,7 +262,12 @@ public sealed partial class GameClient
         if (entry == null) return;
         BeginTransaction(npcId, entry);
         var interaction = _npcInteraction!;
-        var page = await interaction.BeginAsync();
+        var page = await WithNpcDialogTimeoutAsync(ct => interaction.BeginAsync(ct), "opening sell page");
+        if (page == null)
+        {
+            EndTransaction();
+            return;
+        }
         string[] sellKeys = { "@BUYSELLNEW", "@BUYSELL", "@SELL" };
         var sellKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => sellKeys.Contains(k.ToUpper()));
         if (sellKey == null || sellKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
@@ -272,11 +277,11 @@ public sealed partial class GameClient
             return;
         }
         using (var cts = new System.Threading.CancellationTokenSource(2000))
-        {        
+        {
             try
             {
                 Log($"Accessing sell page...");
-                await interaction.SelectFromMainAsync(sellKey);
+                await interaction.SelectFromMainAsync(sellKey, cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -317,10 +322,19 @@ public sealed partial class GameClient
     public async Task<bool> RepairItemsAtNpcAsync(uint npcId)
     {
         var entry = await ResolveNpcEntryAsync(npcId);
-        if (entry == null) return false;
+        if (entry == null)
+        {
+            LogError($"Unknown NPC id {npcId} while opening storage");
+            return false;
+        }
         BeginTransaction(npcId, entry);
         var interaction = _npcInteraction!;
-        var page = await interaction.BeginAsync();
+        var page = await WithNpcDialogTimeoutAsync(ct => interaction.BeginAsync(ct), "opening repair page");
+        if (page == null)
+        {
+            EndTransaction();
+            return false;
+        }
         string[] repairKeys = { "@SREPAIR", "@REPAIR" };
         var repairKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => repairKeys.Contains(k.ToUpper())) ?? "@REPAIR";
         bool special = repairKey.Equals("@SREPAIR", StringComparison.OrdinalIgnoreCase);
@@ -334,7 +348,7 @@ public sealed partial class GameClient
         {
             var waitTask = WaitForLatestNpcResponseAsync(cts.Token);
             Log($"Accessing repair key...");
-            await interaction.SelectFromMainAsync(repairKey);
+            await interaction.SelectFromMainAsync(repairKey, cts.Token);
             try
             {
                 await waitTask;
@@ -359,11 +373,20 @@ public sealed partial class GameClient
     public async Task<bool> BuyNeededItemsAtNpcAsync(uint npcId)
     {
         var entry = await ResolveNpcEntryAsync(npcId);
-        if (entry == null) return false;
+        if (entry == null)
+        {
+            LogError($"Unknown NPC id {npcId} while opening storage");
+            return false;
+        }
         BeginTransaction(npcId, entry);
 
         var interaction = _npcInteraction!;
-        var page = await interaction.BeginAsync();
+        var page = await WithNpcDialogTimeoutAsync(ct => interaction.BeginAsync(ct), "opening buy page");
+        if (page == null)
+        {
+            EndTransaction();
+            return false;
+        }
         string[] buyKeys = { "@BUYSELLNEW", "@BUYSELL", "@BUYNEW", "@PEARLBUY", "@BUY" };
         var buyKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => buyKeys.Contains(k.ToUpper())) ?? "@BUY";
         if (buyKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
@@ -372,10 +395,10 @@ public sealed partial class GameClient
             return false;
         }
 
-        using (var cts = new CancellationTokenSource(5000))
+        using (var cts = new CancellationTokenSource(NpcDialogTimeoutMs))
         {
             var waitTask = WaitForNpcGoodsAsync(cts.Token);
-            await interaction.SelectFromMainAsync(buyKey);
+            await interaction.SelectFromMainAsync(buyKey, cts.Token);
             try
             {
                 await waitTask;
@@ -409,7 +432,12 @@ public sealed partial class GameClient
         BeginTransaction(npcId, entry);
 
         var interaction = _npcInteraction!;
-        var page = await interaction.BeginAsync();
+        var page = await WithNpcDialogTimeoutAsync(ct => interaction.BeginAsync(ct), "opening buy page");
+        if (page == null)
+        {
+            EndTransaction();
+            return;
+        }
         string[] buyKeys = { "@BUYSELLNEW", "@BUYSELL", "@BUYNEW", "@PEARLBUY", "@BUY" };
         var buyKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => buyKeys.Contains(k.ToUpper())) ?? "@BUY";
         if (buyKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
@@ -418,10 +446,10 @@ public sealed partial class GameClient
             return;
         }
 
-        using (var cts = new CancellationTokenSource(5000))
+        using (var cts = new CancellationTokenSource(NpcDialogTimeoutMs))
         {
             var waitTask = WaitForNpcGoodsAsync(cts.Token);
-            await interaction.SelectFromMainAsync(buyKey);
+            await interaction.SelectFromMainAsync(buyKey, cts.Token);
             try
             {
                 await waitTask;
@@ -443,42 +471,69 @@ public sealed partial class GameClient
         EndTransaction();
     }
 
-    public async Task OpenStorageAsync(uint npcId)
+    public async Task<bool> OpenStorageAsync(uint npcId)
     {
         var entry = await ResolveNpcEntryAsync(npcId);
-        if (entry == null) return;
+        if (entry == null)
+        {
+            LogError($"Unknown NPC id {npcId} while opening storage");
+            UpdateLastStorageAction($"Unknown NPC id {npcId}");
+            return false;
+        }
 
         Log($"I am opening storage at {entry.Name}");
+        UpdateLastStorageAction($"Opening storage at {entry.Name}");
 
         BeginTransaction(npcId, entry);
 
         var interaction = _npcInteraction!;
-        var page = await interaction.BeginAsync();
-        var storageKey = page.Buttons.Select(b => b.Key).FirstOrDefault(k => k.Equals("@STORAGE", StringComparison.OrdinalIgnoreCase)) ?? "@STORAGE";
-
-        using (var cts = new CancellationTokenSource(5000))
+        var page = await WithNpcDialogTimeoutAsync(ct => interaction.BeginAsync(ct), "opening storage");
+        if (page == null)
         {
-            var waitTask = WaitForUserStorageAsync(cts.Token);
-            await interaction.SelectFromMainAsync(storageKey);
+            EndTransaction();
+            UpdateLastStorageAction($"Timeout starting storage at {entry.Name}");
+            return false;
+        }
+
+        var storageButton = page.Buttons.FirstOrDefault(b => b.Key.StartsWith("@STORAGE", StringComparison.OrdinalIgnoreCase));
+        string storageKey = storageButton?.Key ?? "@STORAGE";
+        if (storageButton == null)
+        {
+            LogError($"No storage option found on {entry.Name} page");
+            UpdateLastStorageAction($"No storage button on {entry.Name}");
+        }
+
+        using (var cts2 = new CancellationTokenSource(NpcDialogTimeoutMs))
+        {
+            var waitTask = WaitForUserStorageAsync(cts2.Token);
             try
             {
+                await interaction.SelectFromMainAsync(storageKey, cts2.Token);
                 await waitTask;
+                Log($"Storage page opened successfully at {entry.Name}");
+                UpdateLastStorageAction($"Opened storage page at {entry.Name}");
             }
             catch (OperationCanceledException)
             {
+                LogError($"Timed out waiting for storage page (npc {entry.Name}, key {storageKey})");
+                EndTransaction();
+                UpdateLastStorageAction($"Timeout waiting for storage page {entry.Name}");
+                return false;
             }
         }
 
         try
         {
-            using var cts = new CancellationTokenSource(200);
-            await WaitForLatestNpcResponseAsync(cts.Token);
+            using var cts3 = new CancellationTokenSource(200);
+            await WaitForLatestNpcResponseAsync(cts3.Token);
         }
         catch (OperationCanceledException)
         {
         }
 
         EndTransaction();
+        UpdateLastStorageAction($"Closed storage at {entry.Name}");
+        return true;
     }
 
     private UserItem? AddItem(UserItem item)

@@ -42,6 +42,7 @@ public sealed partial class GameClient
     private readonly List<Point> _pendingMovementAction = new();
     private string _playerName = string.Empty;
     private string _currentAction = string.Empty;
+    private string _lastStorageAction = string.Empty;
     private uint _objectId;
     private string _currentMapFile = string.Empty;
     private string _currentMapName = string.Empty;
@@ -50,6 +51,7 @@ public sealed partial class GameClient
 
     public string PlayerName => string.IsNullOrEmpty(_playerName) ? _config.CharacterName : _playerName;
     public string CurrentAction => _currentAction;
+    public string LastStorageAction => _lastStorageAction;
     public ushort Level => _level;
     public string CurrentMapFile => _currentMapFile;
     public string CurrentMapName => _currentMapName;
@@ -197,6 +199,34 @@ public sealed partial class GameClient
     private readonly Dictionary<ulong, TaskCompletionSource<S.SellItem>> _sellItemTcs = new();
     private readonly Dictionary<ulong, TaskCompletionSource<bool>> _repairItemTcs = new();
     private const int NpcResponseDebounceMs = 100;
+    private const int NpcDialogTimeoutMs = 5000;
+
+    private async Task<T?> WithNpcDialogTimeoutAsync<T>(Func<CancellationToken, Task<T>> func, string action, string? details = null)
+    {
+        using var cts = new CancellationTokenSource(NpcDialogTimeoutMs);
+        try
+        {
+            return await func(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            var message = $"Timed out waiting for NPC dialog while {action}";
+            if (!string.IsNullOrEmpty(details))
+                message += $" ({details})";
+            LogError(message);
+            return default;
+        }
+    }
+
+    private async Task<bool> ReviveIfDeadAsync()
+    {
+        if (Dead)
+        {
+            await TownReviveAsync();
+            return true;
+        }
+        return false;
+    }
     private const int ExplorationLevelMargin = 5;
     private const int BeltIdx = 6;
     private readonly Dictionary<(string name, string map, int x, int y), DateTime> _recentNpcInteractions = new();
@@ -859,6 +889,11 @@ public sealed partial class GameClient
     {
         _currentAction = action;
         ReportStatus();
+    }
+
+    public void UpdateLastStorageAction(string action)
+    {
+        _lastStorageAction = action;
     }
 
     public GameClient(Config config, NpcMemoryBank npcMemory, MapMovementMemoryBank movementMemory, MapExpRateMemoryBank expRateMemory, MonsterMemoryBank monsterMemory, NavDataManager navDataManager, IAgentLogger? logger = null)
@@ -1840,8 +1875,17 @@ public sealed partial class GameClient
         _recentNpcInteractions[(entry.Name, entry.MapFile, entry.X, entry.Y)] = DateTime.UtcNow;
         Log($"I am speaking with NPC {entry.Name}");
         _npcInteraction = new NPCInteraction(this, id);
-        var page = await _npcInteraction.BeginAsync();
-        HandleNpcDialogPage(page, entry);
+        var page = await WithNpcDialogTimeoutAsync(ct => _npcInteraction.BeginAsync(ct),
+            "starting NPC interaction", $"key=@Main, npc {entry.Name} ({id})");
+        if (page != null)
+        {
+            HandleNpcDialogPage(page, entry);
+        }
+        else
+        {
+            _dialogNpcId = null;
+            _npcInteraction = null;
+        }
     }
 
     internal void BeginTransaction(uint id, NpcEntry entry)
@@ -1867,7 +1911,7 @@ public sealed partial class GameClient
         var waitTask = WaitForNpcSellAsync(cts.Token);
         try
         {
-            await _npcInteraction.SelectFromMainAsync(key);
+            await _npcInteraction.SelectFromMainAsync(key, cts.Token);
             await waitTask;
         }
         catch (OperationCanceledException)
@@ -1887,7 +1931,7 @@ public sealed partial class GameClient
         var waitTask = WaitForNpcRepairAsync(cts.Token);
         try
         {
-            await _npcInteraction.SelectFromMainAsync(key);
+            await _npcInteraction.SelectFromMainAsync(key, cts.Token);
             await waitTask;
         }
         catch (OperationCanceledException)
@@ -1909,7 +1953,7 @@ public sealed partial class GameClient
         {
             if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var entry))
                 Log($"I am looking at {entry.Name}'s goods list");
-            await _npcInteraction.SelectFromMainAsync(key);
+            await _npcInteraction.SelectFromMainAsync(key, cts.Token);
             await waitTask;
             if (_lastNpcGoods != null)
                 await BuyNeededItemsFromGoodsAsync(_lastNpcGoods, _lastNpcGoodsType);
@@ -1931,7 +1975,7 @@ public sealed partial class GameClient
         var waitTask = WaitForNpcRepairAsync(cts.Token);
         try
         {
-            await _npcInteraction.SelectFromMainAsync(key);
+            await _npcInteraction.SelectFromMainAsync(key, cts.Token);
             await waitTask;
             if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var entry))
             {
@@ -2145,6 +2189,9 @@ public sealed partial class GameClient
             var localMap = CurrentMap;
             if (localMap == null) return false;
 
+            if (await ReviveIfDeadAsync())
+                return false;
+
             string startMap = _currentMapFile;
 
             Point lastLoc = CurrentLocation;
@@ -2152,6 +2199,8 @@ public sealed partial class GameClient
 
             while (!Disconnected && Functions.MaxDistance(CurrentLocation, dest) > destRange)
             {
+                if (await ReviveIfDeadAsync())
+                    return false;
                 var p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
                 if (p.Count == 0)
                     return false;
@@ -2191,11 +2240,22 @@ public sealed partial class GameClient
         var map = CurrentMap;
         if (map == null) return false;
 
-        CurrentNpcInteraction = interactionType;
+        if (await ReviveIfDeadAsync())
+            return false;
 
         string destMap = targetMap ?? Path.GetFileNameWithoutExtension(_currentMapFile);
+
+        if (string.Equals(Path.GetFileNameWithoutExtension(_currentMapFile), destMap, StringComparison.OrdinalIgnoreCase) &&
+            Functions.MaxDistance(CurrentLocation, target) <= range)
+        {
+            return true;
+        }
+
+        CurrentNpcInteraction = interactionType;
         if (!string.Equals(Path.GetFileNameWithoutExtension(_currentMapFile), destMap, StringComparison.OrdinalIgnoreCase))
         {
+            if (await ReviveIfDeadAsync())
+                return false;
             var destPath = Path.Combine(MapManager.MapDirectory, destMap + ".map");
             var travel = MovementHelper.FindTravelPath(this, destPath);
             if (travel == null)
@@ -2206,6 +2266,11 @@ public sealed partial class GameClient
 
             foreach (var step in travel)
             {
+                if (await ReviveIfDeadAsync())
+                {
+                    CurrentNpcInteraction = NpcInteractionType.General;
+                    return false;
+                }
                 if (!await MoveWithinMapAsync(new Point(step.SourceX, step.SourceY), 0))
                 {
                     CurrentNpcInteraction = NpcInteractionType.General;

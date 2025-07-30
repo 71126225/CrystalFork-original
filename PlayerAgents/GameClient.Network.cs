@@ -621,8 +621,6 @@ public sealed partial class GameClient
             case S.UserStorage us:
                 _storage = us.Storage;
                 BindAll(_storage);
-                _userStorageTcs?.TrySetResult(true);
-                _userStorageTcs = null;
                 break;
             case S.ResizeStorage rs:
                 if (_storage == null || _storage.Length != rs.Size)
@@ -631,8 +629,6 @@ public sealed partial class GameClient
                 }
                 break;
             case S.StoreItem store:
-                _storeItemTcs?.TrySetResult(store.Success);
-                _storeItemTcs = null;
                 if (store.Success && _inventory != null && _storage != null)
                 {
                     if (store.From >= 0 && store.From < _inventory.Length && store.To >= 0 && store.To < _storage.Length)
@@ -641,10 +637,10 @@ public sealed partial class GameClient
                         _inventory[store.From] = null;
                     }
                 }
+                _storeItemTcs?.TrySetResult(store.Success);
+                _storeItemTcs = null;
                 break;
             case S.TakeBackItem tb:
-                _takeBackItemTcs?.TrySetResult(tb.Success);
-                _takeBackItemTcs = null;
                 if (tb.Success && _inventory != null && _storage != null)
                 {
                     if (tb.From >= 0 && tb.From < _storage.Length && tb.To >= 0 && tb.To < _inventory.Length)
@@ -653,6 +649,8 @@ public sealed partial class GameClient
                         _storage[tb.From] = null;
                     }
                 }
+                _takeBackItemTcs?.TrySetResult(tb.Success);
+                _takeBackItemTcs = null;
                 break;
             case S.NPCResponse nr:
                 DeliverNpcResponse(nr);
@@ -672,6 +670,8 @@ public sealed partial class GameClient
                         _npcMemory.SaveChanges();
                     }
                 }
+                _userStorageTcs?.TrySetResult(true);
+                _userStorageTcs = null;
                 break;
             case S.NPCSell:
                 if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var npcSellEntry) && npcSellEntry.CanSell)

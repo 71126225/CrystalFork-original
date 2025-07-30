@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using C = ClientPackets;
 
@@ -12,6 +13,20 @@ public sealed partial class GameClient
         Console.WriteLine(message);
         if (_debugActive && !string.IsNullOrEmpty(_debugRecipient))
             FireAndForget(SendWhisperAsync(_debugRecipient, message));
+    }
+
+    internal void LogError(string message)
+    {
+        string location = $"{CurrentMapName} ({CurrentLocation.X}, {CurrentLocation.Y})";
+        string fullMessage = $"{PlayerName} at {location}: {message}";
+        try
+        {
+            File.AppendAllText("Error.txt", fullMessage + Environment.NewLine);
+        }
+        catch
+        {
+        }
+        Log(fullMessage);
     }
 
     private async Task SendWhisperAsync(string target, string message)
@@ -38,6 +53,10 @@ public sealed partial class GameClient
         else if (msg.Equals("inventory", StringComparison.OrdinalIgnoreCase))
         {
             FireAndForget(SendInventoryAsync(sender));
+        }
+        else if (msg.Equals("lastaction", StringComparison.OrdinalIgnoreCase))
+        {
+            FireAndForget(SendWhisperAsync(sender, LastStorageAction));
         }
         else if (msg.Equals("sell", StringComparison.OrdinalIgnoreCase))
         {
