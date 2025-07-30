@@ -386,6 +386,18 @@ public sealed partial class GameClient
                     {
                         FireAndForget(Task.Run(async () => await HarvestLoopAsync(objD)));
                     }
+                    else if (objD.Type == ObjectType.Player && od.ObjectID != _objectId)
+                    {
+                        foreach (var m in _trackedObjects.Values)
+                        {
+                            if (m.Type == ObjectType.Monster && m.EngagedWith == od.ObjectID)
+                            {
+                                m.EngagedWith = null;
+                                if (_awaitingHarvest && !m.Dead && Functions.MaxDistance(_currentLocation, m.Location) <= 2)
+                                    CancelHarvesting();
+                            }
+                        }
+                    }
                 }
                 break;
             case S.ObjectHarvested oh:

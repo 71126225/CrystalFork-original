@@ -1477,7 +1477,8 @@ public sealed partial class GameClient
                 break;
 
             if (_trackedObjects.Values.Any(o => o.Type == ObjectType.Monster && !o.Dead &&
-                Functions.MaxDistance(_currentLocation, o.Location) <= 2))
+                Functions.MaxDistance(_currentLocation, o.Location) <= 2 &&
+                (!o.EngagedWith.HasValue || o.EngagedWith.Value == _objectId)))
             {
                 await Task.Delay(HarvestDelay);
                 continue;
