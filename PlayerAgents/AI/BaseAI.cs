@@ -53,6 +53,7 @@ public class BaseAI
     {
         _travelPath = null;
         _currentRoamPath = null;
+        _searchDestination = null;
         _nextPathFindTime = DateTime.MinValue;
         _lastRoamDirection = null;
     }
@@ -1648,7 +1649,8 @@ public class BaseAI
 
         var current = Client.CurrentLocation;
         var target = FindClosestTarget(current, out int dist);
-        if (target != null && target.Type == ObjectType.Monster && dist <= 2)
+        if (target != null && target.Type == ObjectType.Monster && dist <= 2 &&
+            !IgnoredAIs.Contains(target.AI))
         {
             Client.CancelHarvesting();
             if (dist <= 1 && DateTime.UtcNow >= _nextAttackTime)
