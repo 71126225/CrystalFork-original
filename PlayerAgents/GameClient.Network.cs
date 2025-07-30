@@ -621,6 +621,8 @@ public sealed partial class GameClient
             case S.UserStorage us:
                 _storage = us.Storage;
                 BindAll(_storage);
+                _storageLoadedTcs?.TrySetResult(true);
+                _storageLoadedTcs = null;
                 break;
             case S.ResizeStorage rs:
                 if (_storage == null || _storage.Length != rs.Size)

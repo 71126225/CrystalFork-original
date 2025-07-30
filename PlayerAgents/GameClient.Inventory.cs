@@ -505,11 +505,12 @@ public sealed partial class GameClient
 
         using (var cts2 = new CancellationTokenSource(NpcDialogTimeoutMs))
         {
-            var waitTask = WaitForUserStorageAsync(cts2.Token);
+            var waitPageTask = WaitForUserStorageAsync(cts2.Token);
+            var waitDataTask = WaitForStorageLoadedAsync(cts2.Token);
             try
             {
                 await interaction.SelectFromMainAsync(storageKey, cts2.Token);
-                await waitTask;
+                await Task.WhenAll(waitPageTask, waitDataTask);
                 Log($"Storage page opened successfully at {entry.Name}");
                 UpdateLastStorageAction($"Opened storage page at {entry.Name}");
             }

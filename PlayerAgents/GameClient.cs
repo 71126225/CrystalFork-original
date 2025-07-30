@@ -194,6 +194,7 @@ public sealed partial class GameClient
     private TaskCompletionSource<bool>? _npcSellTcs;
     private TaskCompletionSource<bool>? _npcRepairTcs;
     private TaskCompletionSource<bool>? _userStorageTcs;
+    private TaskCompletionSource<bool>? _storageLoadedTcs;
     private TaskCompletionSource<bool>? _storeItemTcs;
     private TaskCompletionSource<bool>? _takeBackItemTcs;
     private readonly Dictionary<ulong, TaskCompletionSource<S.SellItem>> _sellItemTcs = new();
