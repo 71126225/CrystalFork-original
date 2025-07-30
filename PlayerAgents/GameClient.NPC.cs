@@ -130,6 +130,18 @@ public sealed partial class GameClient
         return tcs.Task;
     }
 
+    public Task WaitForStorageLoadedAsync(CancellationToken cancellationToken = default)
+    {
+        if (_storage != null)
+            return Task.CompletedTask;
+
+        var tcs = new TaskCompletionSource<bool>();
+        _storageLoadedTcs = tcs;
+        if (cancellationToken != default)
+            cancellationToken.Register(() => tcs.TrySetCanceled());
+        return tcs.Task;
+    }
+
     public Task<bool> WaitForStoreItemAsync(CancellationToken cancellationToken = default)
     {
         var tcs = new TaskCompletionSource<bool>();
