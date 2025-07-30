@@ -47,6 +47,7 @@ public class BaseAI
         Client.ExpRateSaved += OnExpRateSaved;
         Client.WhisperCommandReceived += OnWhisperCommand;
         Client.PickUpFailed += OnPickUpFailed;
+        Client.MonsterHidden += OnMonsterHidden;
 
         Client.ScanInventoryForAutoStore();
     }
@@ -100,6 +101,20 @@ public class BaseAI
             _currentTarget.Location == loc)
         {
             _currentTarget = null;
+        }
+    }
+
+    private void OnMonsterHidden(uint id)
+    {
+        _monsterIgnoreTimes[id] = DateTime.UtcNow + MonsterIgnoreDelay;
+        if (_currentTarget != null && _currentTarget.Id == id)
+        {
+            _currentTarget = null;
+            _lostTargetLocation = null;
+            _lostTargetPath = null;
+            _currentRoamPath = null;
+            _nextTargetSwitchTime = DateTime.MinValue;
+            _nextPathFindTime = DateTime.MinValue;
         }
     }
 
@@ -462,6 +477,11 @@ public class BaseAI
     {
         var path = await FindPathAsync(map, current, target.Location, target.Id, radius);
         return path.Count > 0 && await MoveAlongPathAsync(path, target.Location);
+    }
+
+    protected virtual bool ShouldIgnoreDistantTarget(TrackedObject target, int distance)
+    {
+        return distance > 20;
     }
 
     private bool IsDangerousMonster(TrackedObject monster)
@@ -1330,9 +1350,9 @@ public class BaseAI
                         _lostTargetLocation = _currentTarget.Location;
                         _lostTargetPath = null;
                         _currentRoamPath = null;
-                        _currentTarget = null;
-                        _nextPathFindTime = DateTime.MinValue;
                     }
+                    _currentTarget = null;
+                    _nextPathFindTime = DateTime.MinValue;
                 }
             }
             int distance = 0;
@@ -1392,7 +1412,13 @@ public class BaseAI
                 }
                 else
                 {
-                    if (distance > 1)
+                    if (ShouldIgnoreDistantTarget(closest, distance))
+                    {
+                        _monsterIgnoreTimes[closest.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
+                        _currentTarget = null;
+                        _nextTargetSwitchTime = DateTime.MinValue;
+                    }
+                    else if (distance > 1)
                     {
                         bool moved = await MoveToTargetAsync(map, current, closest);
                         if (!moved)

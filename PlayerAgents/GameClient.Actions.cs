@@ -108,6 +108,21 @@ public sealed partial class GameClient
         await SendAsync(attack);
     }
 
+    public async Task CastMagicAsync(Spell spell, MirDirection direction, Point targetLocation, uint targetId)
+    {
+        if (_stream == null) return;
+        var magic = new C.Magic
+        {
+            ObjectID = _objectId,
+            Spell = spell,
+            Direction = direction,
+            TargetID = targetId,
+            Location = targetLocation,
+            SpellTargetLock = false
+        };
+        await SendAsync(magic);
+    }
+
     public async Task TurnAsync(MirDirection direction)
     {
         if (_stream == null) return;

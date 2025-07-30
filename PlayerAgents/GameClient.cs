@@ -28,6 +28,7 @@ public sealed partial class GameClient
     public event Action<double>? ExpRateSaved;
     public event Action<string>? WhisperCommandReceived;
     public event Action? PickUpFailed;
+    public event Action<uint>? MonsterHidden;
     private TcpClient? _client;
     private NetworkStream? _stream;
     private long _pingTime;
@@ -170,6 +171,9 @@ public sealed partial class GameClient
             {
                 _blockingCells.AddOrUpdate(obj.Location, 1, (_, v) => v + 1);
             }
+
+            if (hidden)
+                MonsterHidden?.Invoke(id);
         }
     }
 
