@@ -59,6 +59,8 @@ public sealed partial class GameClient
     public NavData? NavData => _navData;
 
     private LightSetting _timeOfDay = LightSetting.Normal;
+    private LightSetting _mapLight = LightSetting.Normal;
+    private byte _mapDarkLight;
 
     private MirGender _gender;
     private ushort _level;
@@ -858,6 +860,8 @@ public sealed partial class GameClient
     public MirClass? PlayerClass => _playerClass;
     public Task<MirClass> WaitForClassAsync() => _classTcs.Task;
     public LightSetting TimeOfDay => _timeOfDay;
+    public LightSetting MapLight => _mapLight;
+    public byte MapDarkLight => _mapDarkLight;
     public MapData? CurrentMap => _mapData;
     public IReadOnlyDictionary<uint, TrackedObject> TrackedObjects => _trackedObjects;
     public IEnumerable<Point> BlockingCells => _blockingCells.Keys;

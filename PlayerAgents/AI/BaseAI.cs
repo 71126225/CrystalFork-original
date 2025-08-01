@@ -283,7 +283,11 @@ public class BaseAI
         // handle torch based on time of day
         var torchSlot = EquipmentSlot.Torch;
         UserItem? currentTorch = equipment.Count > (int)torchSlot ? equipment[(int)torchSlot] : null;
-        if (Client.TimeOfDay == LightSetting.Night)
+        bool dark = Client.TimeOfDay == LightSetting.Night ||
+                    Client.MapLight == LightSetting.Night ||
+                    Client.MapDarkLight > 0;
+
+        if (dark)
         {
             UserItem? bestTorch = GetBestItemForSlot(torchSlot, available, currentTorch);
             if (bestTorch != null && bestTorch != currentTorch)
@@ -295,7 +299,7 @@ public class BaseAI
                     Client.Log($"I have equipped {bestTorch.Info.FriendlyName}");
             }
         }
-        else if (currentTorch != null)
+        else if (!dark && currentTorch != null)
         {
             if (currentTorch.Info != null)
                 Client.Log($"I have unequipped {currentTorch.Info.FriendlyName}");

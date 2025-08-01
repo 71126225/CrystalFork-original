@@ -137,6 +137,8 @@ public sealed partial class GameClient
             case S.MapInformation mi:
                 _currentMapFile = Path.Combine(MapManager.MapDirectory, mi.FileName + ".map");
                 _currentMapName = mi.Title;
+                _mapLight = mi.Lights;
+                _mapDarkLight = mi.MapDarkLight;
                 _ = LoadMapAsync();
                 StartMapExpTracking(_currentMapFile);
                 _lastMapChangeTime = DateTime.UtcNow;
@@ -175,6 +177,8 @@ public sealed partial class GameClient
                 PauseMapExpTracking();
                 _currentMapFile = Path.Combine(MapManager.MapDirectory, mc.FileName + ".map");
                 _currentMapName = mc.Title;
+                _mapLight = mc.Lights;
+                _mapDarkLight = mc.MapDarkLight;
                 _currentLocation = mc.Location;
                 _navData?.Remove(_currentLocation);
                 _trackedObjects.Clear();
