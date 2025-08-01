@@ -1448,6 +1448,12 @@ public sealed partial class GameClient
         }
     }
 
+    private void RemoveFromPendingStorage(ulong uniqueId)
+    {
+        if (_pendingStorage.Count == 0) return;
+        _pendingStorage.RemoveAll(i => i.UniqueID == uniqueId);
+    }
+
     internal void ScanInventoryForAutoStore()
     {
         if (_inventory == null) return;

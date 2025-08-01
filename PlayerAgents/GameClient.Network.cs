@@ -527,9 +527,14 @@ public sealed partial class GameClient
                         if (it != null)
                         {
                             if (it.Count > 1)
+                            {
                                 it.Count--;
+                            }
                             else
+                            {
                                 _inventory[idx] = null;
+                                RemoveFromPendingStorage(ui.UniqueID);
+                            }
                         }
                     }
                 }
@@ -546,14 +551,15 @@ public sealed partial class GameClient
                 if (ei.Grid == MirGridType.Inventory && ei.Success && _inventory != null && _equipment != null)
                 {
                     int invIndex = Array.FindIndex(_inventory, x => x != null && x.UniqueID == ei.UniqueID);
-                if (invIndex >= 0 && ei.To >= 0 && ei.To < _equipment.Length)
-                {
-                    var temp = _equipment[ei.To];
-                    _equipment[ei.To] = _inventory[invIndex];
-                    _inventory[invIndex] = temp;
-                    MarkStatsDirty();
+                    if (invIndex >= 0 && ei.To >= 0 && ei.To < _equipment.Length)
+                    {
+                        var temp = _equipment[ei.To];
+                        _equipment[ei.To] = _inventory[invIndex];
+                        _inventory[invIndex] = temp;
+                        RemoveFromPendingStorage(ei.UniqueID);
+                        MarkStatsDirty();
+                    }
                 }
-            }
             break;
             case S.RemoveItem ri:
                 if (ri.Grid == MirGridType.Inventory && ri.Success && _inventory != null && _equipment != null)
@@ -577,9 +583,14 @@ public sealed partial class GameClient
                         if (it != null)
                         {
                             if (di.Count >= it.Count)
+                            {
                                 _inventory[idx] = null;
+                                RemoveFromPendingStorage(di.UniqueID);
+                            }
                             else
+                            {
                                 it.Count -= di.Count;
+                            }
                         }
                     }
                     if (_lastPickedItem != null && _lastPickedItem.UniqueID == di.UniqueID)
@@ -596,9 +607,14 @@ public sealed partial class GameClient
                         if (it != null)
                         {
                             if (it.Count > di.Count)
+                            {
                                 it.Count -= di.Count;
+                            }
                             else
+                            {
                                 _inventory[idx] = null;
+                                RemoveFromPendingStorage(di.UniqueID);
+                            }
                         }
                     }
                 }
@@ -651,8 +667,11 @@ public sealed partial class GameClient
                 {
                     if (store.From >= 0 && store.From < _inventory.Length && store.To >= 0 && store.To < _storage.Length)
                     {
-                        _storage[store.To] = _inventory[store.From];
+                        var moved = _inventory[store.From];
+                        _storage[store.To] = moved;
                         _inventory[store.From] = null;
+                        if (moved != null)
+                            RemoveFromPendingStorage(moved.UniqueID);
                     }
                 }
                 _storeItemTcs?.TrySetResult(store.Success);
@@ -772,9 +791,14 @@ public sealed partial class GameClient
                                 if (item != null)
                                 {
                                     if (item.Count <= sell.Count)
+                                    {
                                         _inventory[idx] = null;
+                                        RemoveFromPendingStorage(sell.UniqueID);
+                                    }
                                     else
+                                    {
                                         item.Count -= sell.Count;
+                                    }
                                 }
                             }
                         }
