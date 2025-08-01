@@ -562,7 +562,9 @@ public class BaseAI
         if (DateTime.UtcNow < _travelPauseUntil)
             return Task.FromResult(false);
 
+        Client.Log($"Finding travel path to {Path.GetFileNameWithoutExtension(destMapFile)}");
         var path = MovementHelper.FindTravelPath(Client, destMapFile);
+        Client.Log(path == null ? "Travel path not found" : $"Travel path has {path.Count} steps");
         if (path == null)
         {
             _travelPath = null;
@@ -637,6 +639,7 @@ public class BaseAI
             _currentRoamPath = null;
             _nextPathFindTime = DateTime.MinValue;
             _lastRoamDirection = null;
+            Client.Log($"Travel destination set to {dest.X},{dest.Y} on {step.SourceMap}");
         }
     }
 
@@ -806,6 +809,7 @@ public class BaseAI
     private async Task<NpcInteractionResult> InteractWithNpcAsync(Point location, uint npcId, NpcEntry? entry,
         NpcInteractionType interactionType, IReadOnlyList<(UserItem item, ushort count)>? sellItems = null)
     {
+        Client.Log($"Moving to NPC {entry?.Name ?? npcId.ToString()} at {location.X},{location.Y}");
         bool reached = false;
         reached = await Client.MoveWithinRangeAsync(location, npcId, Globals.DataRange, interactionType, WalkDelay, entry?.MapFile);
         if (!reached)
@@ -1487,6 +1491,7 @@ public class BaseAI
                             if (DateTime.UtcNow >= _nextPathFindTime)
                             {
                                 _lostTargetPath = await FindPathAsync(map, current, _lostTargetLocation.Value);
+                                Client.Log($"Lost target path length {_lostTargetPath.Count}");
                                 _nextPathFindTime = DateTime.UtcNow + RoamPathFindInterval;
                                 if (_lostTargetPath.Count == 0)
                                 {
@@ -1531,6 +1536,7 @@ public class BaseAI
                         if (DateTime.UtcNow >= _nextPathFindTime)
                         {
                             _currentRoamPath = await FindPathAsync(map, current, _searchDestination.Value, 0, 0);
+                            Client.Log($"Roam path length {_currentRoamPath.Count}");
                             _nextPathFindTime = DateTime.UtcNow + RoamPathFindInterval;
                             if (_currentRoamPath.Count == 0)
                             {
@@ -1568,6 +1574,7 @@ public class BaseAI
                         if (DateTime.UtcNow >= _nextPathFindTime)
                         {
                             _currentRoamPath = await FindPathAsync(map, current, _searchDestination.Value, 0, 0);
+                            Client.Log($"Travel roam path length {_currentRoamPath.Count}");
                             //_nextPathFindTime = DateTime.UtcNow + TravelPathFindInterval;
                             if (_currentRoamPath.Count == 0)
                             {

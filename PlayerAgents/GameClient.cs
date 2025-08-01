@@ -2236,6 +2236,7 @@ public sealed partial class GameClient
 
     public async Task<bool> MoveWithinRangeAsync(Point target, uint ignoreId, int range, NpcInteractionType interactionType, int delay, string? targetMap = null)
     {
+        Log($"MoveWithinRange to {target.X},{target.Y} range {range}");
         async Task<bool> MoveWithinMapAsync(Point dest, int destRange)
         {
             var localMap = CurrentMap;
@@ -2245,7 +2246,7 @@ public sealed partial class GameClient
                 return false;
 
             string startMap = _currentMapFile;
-
+            
             Point lastLoc = CurrentLocation;
             DateTime stuckSince = DateTime.MinValue;
             bool needsNewPath = true;
@@ -2259,6 +2260,7 @@ public sealed partial class GameClient
                 {
                     needsNewPath = false;
                     p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
+                    Log($"Computed path with {p.Count} nodes");
                     if (p.Count == 0)
                         return false;
                 }
@@ -2281,6 +2283,7 @@ public sealed partial class GameClient
                     else if (DateTime.UtcNow - stuckSince > TimeSpan.FromSeconds(5))
                     {
                         var dir = (MirDirection)_random.Next(8);
+                        Log("Stuck while moving, turning to free movement");
                         await TurnAsync(dir);
                         stuckSince = DateTime.UtcNow;
                     }
@@ -2317,6 +2320,8 @@ public sealed partial class GameClient
                 return false;
             var destPath = Path.Combine(MapManager.MapDirectory, destMap + ".map");
             var travel = MovementHelper.FindTravelPath(this, destPath);
+            if (travel != null)
+                Log($"Travel path length {travel.Count}");
             if (travel == null)
             {
                 CurrentNpcInteraction = NpcInteractionType.General;
@@ -2330,6 +2335,7 @@ public sealed partial class GameClient
                     CurrentNpcInteraction = NpcInteractionType.General;
                     return false;
                 }
+                Log($"Travelling via {step.SourceMap} -> {step.DestinationMap}");
                 if (!await MoveWithinMapAsync(new Point(step.SourceX, step.SourceY), 0))
                 {
                     CurrentNpcInteraction = NpcInteractionType.General;
@@ -2359,6 +2365,7 @@ public sealed partial class GameClient
         }
 
         bool success = await MoveWithinMapAsync(target, range);
+        Log(success ? "Arrived at target" : "Failed to reach target");
         CurrentNpcInteraction = NpcInteractionType.General;
         return success;
     }

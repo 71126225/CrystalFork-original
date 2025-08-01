@@ -82,17 +82,22 @@ public static class MovementHelper
     {
         try
         {
+            client.Log($"Finding path from {start.X},{start.Y} to {dest.X},{dest.Y} (radius {radius})");
             var obstacles = BuildObstacles(client, ignoreId, radius);
-            return await PathFinder.FindPathAsync(map, start, dest, obstacles, radius);
+            var path = await PathFinder.FindPathAsync(map, start, dest, obstacles, radius);
+            client.Log($"Found path of length {path.Count}");
+            return path;
         }
-        catch
+        catch (Exception ex)
         {
+            client.Log($"Path finding failed: {ex.Message}");
             return new List<Point>();
         }
     }
 
     public static async Task<bool> MoveAlongPathAsync(GameClient client, List<Point> path, Point destination)
     {
+        client.Log($"Moving along path with {path.Count} nodes towards {destination.X},{destination.Y}");
         if (path.Count <= 1) return true;
         if (client.MovementSavePending) return false;
 
@@ -104,6 +109,7 @@ public static class MovementHelper
             var dir = Functions.DirectionFromPoint(current, next);
             if (Functions.PointMove(current, dir, 2) == path[2] && client.CanRun(dir))
             {
+                client.Log($"Run step towards {next.X},{next.Y}");
                 await client.RunAsync(dir);
                 path.RemoveRange(0, 2);
                 return true;
@@ -115,6 +121,7 @@ public static class MovementHelper
             var dir = Functions.DirectionFromPoint(current, path[1]);
             if (client.CanWalk(dir))
             {
+                client.Log($"Walk step towards {path[1].X},{path[1].Y}");
                 await client.WalkAsync(dir);
                 path.RemoveAt(0);
                 return true;
@@ -125,6 +132,7 @@ public static class MovementHelper
             var dir = Functions.DirectionFromPoint(current, destination);
             if (client.CanWalk(dir))
             {
+                client.Log($"Walk step towards {destination.X},{destination.Y}");
                 await client.WalkAsync(dir);
                 return true;
             }
@@ -137,8 +145,12 @@ public static class MovementHelper
     {
         var startMap = Path.GetFileNameWithoutExtension(client.CurrentMapFile);
         var destMap = Path.GetFileNameWithoutExtension(destMapFile);
+        client.Log($"Finding travel path from {startMap} to {destMap}");
         if (startMap == destMap)
+        {
+            client.Log("Already on destination map");
             return new List<MapMovementEntry>();
+        }
 
         var entries = client.MovementMemory.GetAll()
             .Where(e => e.SourceMap != e.DestinationMap)
@@ -151,7 +163,10 @@ public static class MovementHelper
         {
             var (map, soFar) = queue.Dequeue();
             if (map == destMap)
+            {
+                client.Log($"Travel path found with {soFar.Count} steps");
                 return soFar;
+            }
 
             foreach (var e in entries)
             {
@@ -162,6 +177,7 @@ public static class MovementHelper
                 queue.Enqueue((e.DestinationMap, newList));
             }
         }
+        client.Log("No travel path found");
         return null;
     }
 }
