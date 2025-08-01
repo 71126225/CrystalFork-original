@@ -59,6 +59,7 @@ public class BaseAI
         _searchDestination = null;
         _nextPathFindTime = DateTime.MinValue;
         _lastRoamDirection = null;
+        _travelDestinationMap = null;
     }
 
     private void OnExpRateSaved(double rate)
@@ -197,6 +198,7 @@ public class BaseAI
     private DateTime _travelPauseUntil = DateTime.MinValue;
     private List<MapMovementEntry>? _travelPath;
     private int _travelIndex;
+    private string? _travelDestinationMap;
     private DateTime _stationarySince = DateTime.MinValue;
     private Point _lastStationaryLocation = Point.Empty;
     private DateTime _travelStuckSince = DateTime.MinValue;
@@ -566,6 +568,7 @@ public class BaseAI
             _travelPath = null;
             _searchDestination = null;
             _lastRoamDirection = null;
+            _travelDestinationMap = null;
             _travelPauseUntil = DateTime.UtcNow + TimeSpan.FromSeconds(10);
             _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromSeconds(10);
             return Task.FromResult(false);
@@ -576,11 +579,13 @@ public class BaseAI
             _travelPath = null;
             _searchDestination = null;
             _lastRoamDirection = null;
+            _travelDestinationMap = null;
             return Task.FromResult(true);
         }
 
         _travelPath = path;
         _travelIndex = 0;
+        _travelDestinationMap = Path.GetFileNameWithoutExtension(destMapFile);
         UpdateTravelDestination();
         return Task.FromResult(true);
     }
@@ -593,6 +598,7 @@ public class BaseAI
             _travelPath = null;
             _searchDestination = null;
             _lastRoamDirection = null;
+            _travelDestinationMap = null;
             Client.UpdateAction("roaming...");
             return;
         }
@@ -608,6 +614,7 @@ public class BaseAI
                 _travelPath = null;
                 _searchDestination = null;
                 _lastRoamDirection = null;
+                _travelDestinationMap = null;
                 Client.UpdateAction("roaming...");
                 return;
             }
@@ -618,6 +625,7 @@ public class BaseAI
             _travelPath = null;
             _searchDestination = null;
             _lastRoamDirection = null;
+            _travelDestinationMap = null;
             Client.UpdateAction("roaming...");
             return;
         }
@@ -663,6 +671,7 @@ public class BaseAI
                 }
                 // force path recalculation if destination changes or interval lapses
                 _travelPath = null;
+                _travelDestinationMap = null;
             }
         }
 
@@ -1566,6 +1575,7 @@ public class BaseAI
                                 _searchDestination = null;
                                 _currentRoamPath = null;
                                 _lastRoamDirection = null;
+                                _travelDestinationMap = null;
                                 _travelPauseUntil = DateTime.UtcNow + TimeSpan.FromSeconds(10);
                                 _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromSeconds(10);
                                 traveling = false;
@@ -1622,7 +1632,10 @@ public class BaseAI
             }
             else if (traveling)
             {
-                Client.UpdateAction("travelling...");
+                if (!string.IsNullOrEmpty(_travelDestinationMap))
+                    Client.UpdateAction($"travelling to {_travelDestinationMap}...");
+                else
+                    Client.UpdateAction("travelling...");
             }
             else if (_currentTarget != null && _currentTarget.Type == ObjectType.Monster)
             {
@@ -1654,6 +1667,7 @@ public class BaseAI
                 _lostTargetLocation = null;
                 _lostTargetPath = null;
                 _travelPath = null;
+                _travelDestinationMap = null;
                 _nextPathFindTime = DateTime.MinValue;
                 Client.Log("Roaming reset due to inactivity");
             }
