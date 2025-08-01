@@ -334,14 +334,22 @@ public sealed partial class GameClient
         return true;
     }
 
+    public int GetDesiredItemCount(DesiredItem desired)
+    {
+        int count = 0;
+        if (_inventory != null)
+            count += _inventory.Where(i => i != null && MatchesDesiredItem(i, desired)).Sum(i => i!.Count);
+        if (_equipment != null && desired.Count.HasValue)
+            count += _equipment.Where(i => i != null && MatchesDesiredItem(i!, desired)).Sum(i => i!.Count);
+        return count;
+    }
+
     private bool NeedMoreOfDesiredItem(DesiredItem desired)
     {
         if (_inventory == null) return false;
         var matching = _inventory.Where(i => i != null && MatchesDesiredItem(i, desired)).ToList();
 
-        int count = matching.Count;
-        if (_equipment != null && desired.Count.HasValue)
-            count += _equipment.Count(i => i != null && MatchesDesiredItem(i!, desired));
+        int count = GetDesiredItemCount(desired);
 
         if (desired.Count.HasValue)
             return count < desired.Count.Value;
@@ -362,9 +370,7 @@ public sealed partial class GameClient
 
         var matching = _inventory.Where(i => i != null && MatchesDesiredItem(i, desired)).ToList();
 
-        int count = matching.Count;
-        if (_equipment != null && desired.Count.HasValue)
-            count += _equipment.Count(i => i != null && MatchesDesiredItem(i!, desired));
+        int count = GetDesiredItemCount(desired);
 
         if (desired.Count.HasValue)
         {

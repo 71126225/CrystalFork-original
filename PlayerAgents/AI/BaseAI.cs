@@ -1029,10 +1029,7 @@ public class BaseAI
         if (inventory == null) return false;
         var matching = inventory.Where(i => i != null && MatchesDesiredItem(i!, desired)).ToList();
 
-        int count = matching.Count;
-        var equipment = Client.Equipment;
-        if (equipment != null && desired.Count.HasValue)
-            count += equipment.Count(i => i != null && MatchesDesiredItem(i!, desired));
+        int count = Client.GetDesiredItemCount(desired);
 
         if (desired.Count.HasValue)
             return count < desired.Count.Value;
