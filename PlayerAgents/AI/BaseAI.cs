@@ -34,7 +34,7 @@ public class BaseAI
     };
 
     // Monsters with these AI values are ignored when selecting a target
-    protected static readonly HashSet<byte> IgnoredAIs = new() { 6, 58, 57, 56, 64 };
+    protected static readonly HashSet<byte> IgnoredAIs = new() { 6, 58, 57, 56, 64, 80, 81, 82 };
 
     protected static bool IsOffensiveSlot(EquipmentSlot slot) => OffensiveSlots.Contains(slot);
 

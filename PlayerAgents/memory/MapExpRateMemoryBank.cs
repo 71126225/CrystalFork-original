@@ -61,11 +61,17 @@ public sealed class MapExpRateMemoryBank : MemoryBankBase<MapExpRateEntry>
         lock (_lock)
         {
             ReloadIfUpdated();
-            return _entries
+            var candidates = _entries
                 .Where(e => e.Class == playerClass && e.Level == level && e.ExpPerHour > 0)
                 .OrderByDescending(e => e.ExpPerHour)
+                .Take(3)
                 .Select(e => e.MapFile)
-                .FirstOrDefault();
+                .ToList();
+
+            if (candidates.Count == 0)
+                return null;
+
+            return candidates[Random.Shared.Next(candidates.Count)];
         }
     }
 }
