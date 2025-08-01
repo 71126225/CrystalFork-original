@@ -2247,14 +2247,20 @@ public sealed partial class GameClient
 
             Point lastLoc = CurrentLocation;
             DateTime stuckSince = DateTime.MinValue;
+            bool needsNewPath = true;
+            List<Point> p = new List<Point>();
 
             while (!Disconnected && Functions.MaxDistance(CurrentLocation, dest) > destRange)
             {
                 if (await ReviveIfDeadAsync())
                     return false;
-                var p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
-                if (p.Count == 0)
-                    return false;
+                if (needsNewPath)
+                {
+                    needsNewPath = false;
+                    p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
+                    if (p.Count == 0)
+                        return false;
+                }
 
                 await MovementHelper.MoveAlongPathAsync(this, p, dest);
                 await Task.Delay(delay);
@@ -2268,6 +2274,7 @@ public sealed partial class GameClient
 
                 if (CurrentLocation == lastLoc)
                 {
+                    needsNewPath = true;
                     if (stuckSince == DateTime.MinValue)
                         stuckSince = DateTime.UtcNow;
                     else if (DateTime.UtcNow - stuckSince > TimeSpan.FromSeconds(5))
