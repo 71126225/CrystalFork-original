@@ -119,7 +119,7 @@ public class BaseAI
     }
 
     protected virtual int WalkDelay => 600;
-    protected virtual int AttackDelay => 1400;
+    protected virtual int AttackDelay => Client.GetAttackDelay();
     protected virtual TimeSpan RoamPathFindInterval => TimeSpan.FromSeconds(2);
     protected virtual TimeSpan FailedPathFindDelay => TimeSpan.FromSeconds(5);
     protected virtual TimeSpan TravelPathFindInterval => TimeSpan.FromSeconds(1);

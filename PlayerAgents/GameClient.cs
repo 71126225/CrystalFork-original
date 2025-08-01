@@ -1358,6 +1358,20 @@ public sealed partial class GameClient
         return total;
     }
 
+    public int GetAttackDelay()
+    {
+        if (_playerClass == null)
+            return 1400;
+
+        int attackSpeed = GetStatTotal(Stat.AttackSpeed);
+        int rate = GetStatTotal(Stat.AttackSpeedRatePercent);
+        if (rate != 0)
+            attackSpeed += (attackSpeed * rate) / 100;
+
+        int delay = 1400 - ((attackSpeed * 60) + Math.Min(370, _level * 14));
+        return delay < 550 ? 550 : delay;
+    }
+
     public bool HasMagic(Spell spell)
     {
         return _magics.Any(m => m.Spell == spell);
