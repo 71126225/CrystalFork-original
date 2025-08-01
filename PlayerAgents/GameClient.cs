@@ -29,6 +29,7 @@ public sealed partial class GameClient
     public event Action<string>? WhisperCommandReceived;
     public event Action? PickUpFailed;
     public event Action<uint>? MonsterHidden;
+    public event Action? IsolateCommandReceived;
     private TcpClient? _client;
     private NetworkStream? _stream;
     private long _pingTime;
@@ -1958,7 +1959,7 @@ public sealed partial class GameClient
     private Func<Task> CreateSellTask(string key) => async () =>
     {
         if (_npcInteraction == null) return;
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var waitTask = WaitForNpcSellAsync(cts.Token);
         try
         {
@@ -1978,7 +1979,7 @@ public sealed partial class GameClient
     private Func<Task> CreateRepairTask(string key) => async () =>
     {
         if (_npcInteraction == null) return;
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var waitTask = WaitForNpcRepairAsync(cts.Token);
         try
         {
@@ -1998,7 +1999,7 @@ public sealed partial class GameClient
     private Func<Task> CreateCheckBuyTask(string key) => async () =>
     {
         if (_npcInteraction == null) return;
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var waitTask = WaitForNpcGoodsAsync(cts.Token);
         try
         {
@@ -2022,7 +2023,7 @@ public sealed partial class GameClient
     private Func<Task> CreateCheckRepairTask(string key) => async () =>
     {
         if (_npcInteraction == null) return;
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var waitTask = WaitForNpcRepairAsync(cts.Token);
         try
         {

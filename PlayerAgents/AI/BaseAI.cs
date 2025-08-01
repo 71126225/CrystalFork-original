@@ -1559,7 +1559,7 @@ public class BaseAI
                         if (DateTime.UtcNow >= _nextPathFindTime)
                         {
                             _currentRoamPath = await FindPathAsync(map, current, _searchDestination.Value, 0, 0);
-                            _nextPathFindTime = DateTime.UtcNow + TravelPathFindInterval;
+                            //_nextPathFindTime = DateTime.UtcNow + TravelPathFindInterval;
                             if (_currentRoamPath.Count == 0)
                             {
                                 _travelPath = null;
@@ -1579,12 +1579,12 @@ public class BaseAI
                         if (!moved)
                         {
                             _currentRoamPath = null;
-                            _nextPathFindTime = DateTime.UtcNow + FailedTravelPathFindDelay;
+                            //_nextPathFindTime = DateTime.UtcNow + FailedTravelPathFindDelay;
                         }
                         else if (_currentRoamPath.Count <= 1)
                         {
                             _currentRoamPath = null;
-                            _nextPathFindTime = DateTime.UtcNow + TravelPathFindInterval;
+                            _nextPathFindTime = DateTime.UtcNow + FailedTravelPathFindDelay;
                         }
                     }
                 }

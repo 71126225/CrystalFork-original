@@ -74,6 +74,10 @@ public sealed partial class GameClient
         {
             WhisperCommandReceived?.Invoke("sell");
         }
+        else if (msg.Equals("isolate", StringComparison.OrdinalIgnoreCase))
+        {
+            IsolateCommandReceived?.Invoke();
+        }
         else if (msg.StartsWith("bestmap", StringComparison.OrdinalIgnoreCase))
         {
             WhisperCommandReceived?.Invoke(msg);

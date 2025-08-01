@@ -219,6 +219,23 @@ internal class Program
             var clientLock = new object();
             var runningClients = new List<GameClient>();
             int nextIndex = agentConfigs.Count;
+            bool autoScaleEnabled = config.AutoScale;
+
+            async Task IsolateAsync(GameClient isolator)
+            {
+                autoScaleEnabled = false;
+                List<GameClient> toDrop;
+                lock (clientLock)
+                    toDrop = runningClients.Where(c => c != isolator).ToList();
+
+                foreach (var c in toDrop)
+                {
+                    await c.DisconnectAsync();
+                    lock (clientLock) runningClients.Remove(c);
+                    logger.RemoveAgent(c.PlayerName);
+                    await Task.Delay(200);
+                }
+            }
 
             async Task StartAgentAsync(AgentConfig agent)
             {
@@ -233,6 +250,7 @@ internal class Program
                 };
 
                 var client = new GameClient(agentCfg, npcMemory, movementMemory, expRateMemory, monsterMemory, navManager, logger);
+                client.IsolateCommandReceived += () => _ = IsolateAsync(client);
                 lock (clientLock) runningClients.Add(client);
 
                 _ = Task.Run(async () =>
@@ -266,7 +284,7 @@ internal class Program
                     var cpu = new CpuMonitor();
                     int low = 0;
                     int high = 0;
-                    while (true)
+                    while (autoScaleEnabled)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(5));
                         var usage = cpu.GetCpuUsage();
