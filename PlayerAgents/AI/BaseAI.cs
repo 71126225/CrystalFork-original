@@ -74,7 +74,7 @@ public class BaseAI
     {
         if (command.Equals("sell", StringComparison.OrdinalIgnoreCase))
         {
-            _refreshInventory = true;
+            TriggerInventoryRefresh();
         }
         else if (command.StartsWith("bestmap", StringComparison.OrdinalIgnoreCase))
         {
@@ -116,6 +116,27 @@ public class BaseAI
             _nextTargetSwitchTime = DateTime.MinValue;
             _nextPathFindTime = DateTime.MinValue;
         }
+    }
+
+    private void TriggerInventoryRefresh()
+    {
+        if (_refreshInventory) return;
+        _refreshInventory = true;
+        _ = UseInventoryTownTeleportAsync();
+    }
+
+    private async Task UseInventoryTownTeleportAsync()
+    {
+        if (DateTime.UtcNow < _nextInventoryTeleportTime) return;
+
+        var teleport = Client.FindTownTeleport();
+        if (teleport == null) return;
+
+        await Client.UseItemAsync(teleport);
+        string name = teleport.Info?.FriendlyName ?? "town teleport";
+        Client.Log($"Used {name} for inventory refresh");
+        _nextInventoryTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(10);
+        _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
     }
 
     protected virtual int WalkDelay => 600;
@@ -170,6 +191,7 @@ public class BaseAI
     private DateTime _nextAttackTime = DateTime.UtcNow;
     private DateTime _nextPotionTime = DateTime.MinValue;
     private DateTime _nextTownTeleportTime = DateTime.MinValue;
+    private DateTime _nextInventoryTeleportTime = DateTime.MinValue;
     private DateTime _nextBestMapCheck = DateTime.MinValue;
     private string? _currentBestMap;
     private DateTime _travelPauseUntil = DateTime.MinValue;
@@ -359,12 +381,12 @@ public class BaseAI
                     Client.Log($"Used {name}");
                     _nextPotionTime = DateTime.UtcNow + TimeSpan.FromSeconds(1);
                     _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
-                    _refreshInventory = true;
+                    TriggerInventoryRefresh();
                     return;
                 }
                 else
                 {
-                    _refreshInventory = true;
+                    TriggerInventoryRefresh();
                 }
             }
         }
@@ -634,7 +656,7 @@ public class BaseAI
                     Path.GetFileNameWithoutExtension(Client.CurrentMapFile);
                 if (!string.Equals(selected, currentMap, StringComparison.OrdinalIgnoreCase))
                 {
-                    _refreshInventory = true;
+                    TriggerInventoryRefresh();
                     var cantAfford = await SellRepairAndBuyAsync();
                     if (!InventoryNeedsRefresh() || cantAfford)
                         _refreshInventory = false;
@@ -1248,7 +1270,7 @@ public class BaseAI
             }
 
             if (!_refreshInventory && NeedsImmediateSellOrRepair())
-                _refreshInventory = true;
+                TriggerInventoryRefresh();
 
             Client.ProcessMapExpRateInterval();
             if (_refreshInventory)
@@ -1663,7 +1685,7 @@ public class BaseAI
         {
             await Client.TownReviveAsync();
             _sentRevive = true;
-            _refreshInventory = true;
+            TriggerInventoryRefresh();
         }
         await Task.Delay(WalkDelay);
         if (!Client.Dead) _sentRevive = false;
