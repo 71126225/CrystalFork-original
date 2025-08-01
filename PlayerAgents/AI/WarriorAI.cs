@@ -16,7 +16,12 @@ public sealed class WarriorAI : BaseAI
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
-        await base.AttackMonsterAsync(monster, current);
+        var dir = Functions.DirectionFromPoint(current, monster.Location);
+        if (Client.Slaying)
+            await Client.AttackAsync(dir, Spell.Slaying);
+        else
+            await Client.AttackAsync(dir, Spell.None);
+        RecordAttackTime();
     }
 
     protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)

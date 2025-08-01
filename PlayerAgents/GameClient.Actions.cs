@@ -88,10 +88,12 @@ public sealed partial class GameClient
         return !(IsCellBlocked(first) || IsCellBlocked(second));
     }
 
-    public async Task AttackAsync(MirDirection direction)
+    public async Task AttackAsync(MirDirection direction, Spell spell = Spell.None)
     {
         if (_stream == null) return;
-        var attack = new C.Attack { Direction = direction, Spell = Spell.None };
+        var attack = new C.Attack { Direction = direction, Spell = spell };
+        if (spell == Spell.Slaying)
+            _slaying = false;
         await SendAsync(attack);
     }
 

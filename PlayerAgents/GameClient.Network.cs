@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using C = ClientPackets;
 using S = ServerPackets;
+using Shared;
 using PlayerAgents.Map;
 
 public sealed partial class GameClient
@@ -863,6 +864,10 @@ public sealed partial class GameClient
                     mag.Level = ml.Level;
                     mag.Experience = ml.Experience;
                 }
+                break;
+            case S.SpellToggle st:
+                if (st.ObjectID == _objectId && st.Spell == Spell.Slaying)
+                    _slaying = st.CanUse;
                 break;
             case S.KeepAlive keep:
                 _pingTime = Environment.TickCount64 - keep.Time;

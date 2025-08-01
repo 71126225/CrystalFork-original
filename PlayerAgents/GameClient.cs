@@ -85,6 +85,8 @@ public sealed partial class GameClient
 
     private bool _dead;
 
+    private bool _slaying;
+
     private DateTime _lastMoveTime = DateTime.MinValue;
     private bool _canRun;
 
@@ -868,6 +870,7 @@ public sealed partial class GameClient
     public IReadOnlyList<ClientMagic> Magics => _magics;
     public int HP => _hp;
     public int MP => _mp;
+    public bool Slaying => _slaying;
     public MapMovementMemoryBank MovementMemory => _movementMemory;
     public MapExpRateMemoryBank ExpRateMemory => _expRateMemory;
     public MonsterMemoryBank MonsterMemory => _monsterMemory;

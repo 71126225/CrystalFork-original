@@ -1676,7 +1676,7 @@ public class BaseAI
     protected virtual async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
         var dir = Functions.DirectionFromPoint(current, monster.Location);
-        await Client.AttackAsync(dir);
+        await Client.AttackAsync(dir, Spell.None);
         RecordAttackTime();
     }
 
