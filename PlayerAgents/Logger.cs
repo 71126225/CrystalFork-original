@@ -70,6 +70,7 @@ public sealed class SummaryAgentLogger : IAgentLogger, IDisposable
     private readonly Timer _timer;
     private readonly CpuMonitor _cpu = new();
     private int _lastLineCount;
+    private string? _focusedAgent;
 
     public SummaryAgentLogger()
     {
@@ -122,8 +123,49 @@ public sealed class SummaryAgentLogger : IAgentLogger, IDisposable
         }
     }
 
+    public void FocusAgent(string agent)
+    {
+        lock (_lockObj)
+        {
+            _focusedAgent = agent;
+            try
+            {
+                Console.SetOut(new StreamWriter(Console.OpenStandardOutput())
+                {
+                    AutoFlush = true
+                });
+                Console.Clear();
+            }
+            catch { }
+        }
+    }
+
+    public void EndFocus()
+    {
+        lock (_lockObj)
+        {
+            _focusedAgent = null;
+            try
+            {
+                Console.SetOut(TextWriter.Null);
+                Console.Clear();
+                Render();
+            }
+            catch { }
+        }
+    }
+
+    public bool ShouldLog(string agent)
+    {
+        lock (_lockObj)
+        {
+            return _focusedAgent == null || _focusedAgent == agent;
+        }
+    }
+
     private void Render()
     {
+        if (_focusedAgent != null) return;
         Console.CursorVisible = false;
         int colWidth = Math.Max(20, Console.WindowWidth / 4);
         var lines = new List<string>();

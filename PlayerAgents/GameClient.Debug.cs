@@ -10,6 +10,8 @@ public sealed partial class GameClient
 
     internal void Log(string message)
     {
+        if (_logger is SummaryAgentLogger summary && !summary.ShouldLog(PlayerName))
+            return;
         Console.WriteLine(message);
         if (_debugActive && !string.IsNullOrEmpty(_debugRecipient))
             FireAndForget(SendWhisperAsync(_debugRecipient, message));
@@ -49,6 +51,16 @@ public sealed partial class GameClient
         else if (msg.Equals("enddebug", StringComparison.OrdinalIgnoreCase))
         {
             StopDebug(sender);
+        }
+        else if (msg.Equals("focus", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_logger is SummaryAgentLogger summary)
+                summary.FocusAgent(PlayerName);
+        }
+        else if (msg.Equals("endfocus", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_logger is SummaryAgentLogger summary)
+                summary.EndFocus();
         }
         else if (msg.Equals("inventory", StringComparison.OrdinalIgnoreCase))
         {
