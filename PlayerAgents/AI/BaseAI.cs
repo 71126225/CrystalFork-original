@@ -514,6 +514,8 @@ public class BaseAI
 
     private bool IsDangerousMonster(TrackedObject monster)
     {
+        if (IgnoredAIs.Contains(monster.AI))
+            return false;
         int dmg = Client.MonsterMemory.GetDamage(monster.Name);
         int maxHP = Client.GetMaxHP();
         return dmg > maxHP / 2;
