@@ -1430,6 +1430,13 @@ public sealed partial class GameClient
     private void CheckAutoStore(UserItem item)
     {
         if (item.Info == null) return;
+
+        if (item.Info.Bind.HasFlag(BindMode.DontStore))
+        {
+            RemoveFromPendingStorage(item.UniqueID);
+            return;
+        }
+
         if (!CanBeEquipped(item.Info)) return;
         if (!ItemMatchesPlayer(item)) return;
 
@@ -1547,6 +1554,7 @@ public sealed partial class GameClient
         foreach (var item in _inventory)
         {
             if (item == null || item.Info == null) continue;
+            if (item.Info.Bind.HasFlag(BindMode.DontSell)) continue;
             if (seen.Contains(item.Info.Type)) continue;
             seen.Add(item.Info.Type);
             _pendingSellChecks[item.UniqueID] = (entry, item.Info.Type);
@@ -1605,6 +1613,8 @@ public sealed partial class GameClient
         {
             if (item == null || item.Info == null) continue;
             if (item.CurrentDura == item.MaxDura) continue;
+            if (item.Info.Bind.HasFlag(BindMode.DontRepair)) continue;
+            if (special && item.Info.Bind.HasFlag(BindMode.NoSRepair)) continue;
             if (seen.Contains(item.Info.Type)) continue;
             seen.Add(item.Info.Type);
             _pendingRepairChecks[item.UniqueID] = (entry, item.Info.Type);
@@ -1696,6 +1706,8 @@ public sealed partial class GameClient
             var item = _equipment[i];
             if (item?.Info == null) continue;
             if (item.CurrentDura == item.MaxDura) continue;
+            if (item.Info.Bind.HasFlag(BindMode.DontRepair)) continue;
+            if (special && item.Info.Bind.HasFlag(BindMode.NoSRepair)) continue;
             if (!repairList.Contains(item.Info.Type)) continue;
             items.Add((item, (EquipmentSlot)i));
         }
@@ -1761,6 +1773,7 @@ public sealed partial class GameClient
         foreach (var item in _inventory)
         {
             if (item?.Info == null) continue;
+            if (item.Info.Bind.HasFlag(BindMode.DontSell)) continue;
             if (!seen.Contains(item.Info.Type))
                 return true;
         }
@@ -1790,6 +1803,8 @@ public sealed partial class GameClient
         {
             if (item?.Info == null) continue;
             if (item.CurrentDura == item.MaxDura) continue;
+            if (item.Info.Bind.HasFlag(BindMode.DontRepair)) continue;
+            if (special && item.Info.Bind.HasFlag(BindMode.NoSRepair)) continue;
             if (!seen.Contains(item.Info.Type))
                 return true;
         }

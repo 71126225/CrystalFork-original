@@ -889,7 +889,10 @@ public class BaseAI
         bool heavy = Client.GetCurrentBagWeight() >= Client.GetMaxBagWeight() * 0.9;
         if (!force && !full && !heavy) return;
 
-        var items = inventory.Where(i => i != null && i.Info != null).ToList();
+        var items = inventory
+            .Where(i => i != null && i.Info != null &&
+                        !i.Info.Bind.HasFlag(BindMode.DontSell))
+            .ToList();
         var keepCounts = GetItemKeepCounts(items);
         var sellGroups = items
             .Select(i => {
@@ -987,7 +990,12 @@ public class BaseAI
         var equipment = Client.Equipment;
         if (equipment == null) return cantAfford;
 
-        var toRepair = equipment.Where(i => i != null && i.Info != null && i.Info.Type != ItemType.Torch && i.CurrentDura < i.MaxDura).ToList();
+        var toRepair = equipment
+            .Where(i => i != null && i.Info != null &&
+                        i.Info.Type != ItemType.Torch &&
+                        i.CurrentDura < i.MaxDura &&
+                        !i.Info.Bind.HasFlag(BindMode.DontRepair))
+            .ToList();
         if (toRepair.Count == 0) return cantAfford;
 
         bool urgent = toRepair.Any(i => i.MaxDura > 0 && i.CurrentDura <= i.MaxDura * 0.05);

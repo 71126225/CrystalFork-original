@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using Shared;
 using C = ClientPackets;
 
 public sealed partial class GameClient
@@ -324,6 +325,14 @@ public sealed partial class GameClient
             return false;
         }
 
+        if (item.Info?.Bind.HasFlag(BindMode.DontStore) == true)
+        {
+            LogError($"Cannot store {itemName}; item is bound to inventory");
+            _pendingStorage.Remove(item);
+            UpdateLastStorageAction($"Cannot store {itemName}; binding restriction");
+            return false;
+        }
+
         int to = Array.FindIndex(_storage, x => x == null);
         if (to < 0)
         {
@@ -397,6 +406,11 @@ public sealed partial class GameClient
 
     public async Task SellItemAsync(UserItem item)
     {
+        if (item.Info?.Bind.HasFlag(BindMode.DontSell) == true)
+        {
+            Log($"Skipping selling {item.Info?.FriendlyName ?? "item"}; binding restriction");
+            return;
+        }
         await SellItemAsync(item.UniqueID, item.Count);
     }
 

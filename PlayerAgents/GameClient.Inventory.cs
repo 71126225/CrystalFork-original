@@ -290,6 +290,11 @@ public sealed partial class GameClient
         foreach (var (item, count) in items)
         {
             if (item.Info == null) continue;
+            if (item.Info.Bind.HasFlag(BindMode.DontSell))
+            {
+                Log($"Skipping {item.Info.Name} due to binding restrictions");
+                continue;
+            }
             Log($"Processing {item.Info.Name}...");
             _pendingSellChecks[item.UniqueID] = (entry, item.Info.Type);
             using var cts = new System.Threading.CancellationTokenSource(2000);

@@ -379,6 +379,23 @@ public sealed partial class GameClient
                 CancelMovementDeleteCheck();
                 _currentLocation = death.Location;
                 _navData?.Remove(_currentLocation);
+
+                if (_equipment != null)
+                {
+                    for (int i = 0; i < _equipment.Length; i++)
+                    {
+                        var ei = _equipment[i];
+                        if (ei?.Info != null && ei.Info.Bind.HasFlag(BindMode.BreakOnDeath))
+                        {
+                            Log($"Deleting {ei.Info.Name} due to BreakOnDeath");
+                            _equipment[i] = null;
+                            RemoveFromPendingStorage(ei.UniqueID);
+                            _pendingSellChecks.Remove(ei.UniqueID);
+                            _pendingRepairChecks.Remove(ei.UniqueID);
+                        }
+                    }
+                }
+
                 break;
             case S.ObjectDied od:
                 if (_trackedObjects.TryGetValue(od.ObjectID, out var objD))
