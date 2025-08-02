@@ -142,6 +142,7 @@ public sealed partial class GameClient
                 _ = LoadMapAsync();
                 StartMapExpTracking(_currentMapFile);
                 _lastMapChangeTime = DateTime.UtcNow;
+                DeliverMapChanged();
                 ReportStatus();
                 break;
             case S.MapChanged mc:
@@ -185,6 +186,7 @@ public sealed partial class GameClient
                 _ = LoadMapAsync();
                 StartMapExpTracking(_currentMapFile);
                 _lastMapChangeTime = DateTime.UtcNow;
+                DeliverMapChanged();
                 if (_awaitingHarvest)
                     _harvestComplete = true;
                 ReportStatus();

@@ -141,9 +141,11 @@ public class BaseAI
         var teleport = Client.FindTownTeleport();
         if (teleport == null) return;
 
+        var mapChange = Client.WaitForMapChangeAsync(waitForNextMap: true);
         await Client.UseItemAsync(teleport);
         string name = teleport.Info?.FriendlyName ?? "town teleport";
         Client.Log($"Used {name} for inventory refresh");
+        await mapChange;
         _nextInventoryTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(10);
         _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
     }

@@ -210,6 +210,7 @@ public sealed partial class GameClient
     private TaskCompletionSource<bool>? _storageLoadedTcs;
     private TaskCompletionSource<bool>? _storeItemTcs;
     private TaskCompletionSource<bool>? _takeBackItemTcs;
+    private TaskCompletionSource<bool>? _mapChangedTcs;
     private readonly Dictionary<ulong, TaskCompletionSource<S.SellItem>> _sellItemTcs = new();
     private readonly Dictionary<ulong, TaskCompletionSource<bool>> _repairItemTcs = new();
     private const int NpcResponseDebounceMs = 250;
@@ -873,6 +874,27 @@ public sealed partial class GameClient
 
     public MirClass? PlayerClass => _playerClass;
     public Task<MirClass> WaitForClassAsync() => _classTcs.Task;
+    public Task WaitForMapChangeAsync(bool waitForNextMap = false, CancellationToken cancellationToken = default)
+    {
+        var stamp = _lastMapChangeTime;
+        if (!waitForNextMap && DateTime.UtcNow - stamp < TimeSpan.FromSeconds(2))
+            return Task.CompletedTask;
+        var tcs = new TaskCompletionSource<bool>();
+        _mapChangedTcs = tcs;
+        if (_lastMapChangeTime != stamp)
+        {
+            _mapChangedTcs = null;
+            return Task.CompletedTask;
+        }
+        if (cancellationToken != default)
+            cancellationToken.Register(() => tcs.TrySetCanceled());
+        return tcs.Task;
+    }
+    private void DeliverMapChanged()
+    {
+        _mapChangedTcs?.TrySetResult(true);
+        _mapChangedTcs = null;
+    }
     public LightSetting TimeOfDay => _timeOfDay;
     public LightSetting MapLight => _mapLight;
     public byte MapDarkLight => _mapDarkLight;
