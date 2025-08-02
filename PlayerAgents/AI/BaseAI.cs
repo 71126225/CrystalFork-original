@@ -1549,7 +1549,8 @@ public class BaseAI
                 {
                     if (_searchDestination == null ||
                         Functions.MaxDistance(current, _searchDestination.Value) <= 1 ||
-                        !map.IsWalkable(_searchDestination.Value.X, _searchDestination.Value.Y))
+                        !map.IsWalkable(_searchDestination.Value.X, _searchDestination.Value.Y) ||
+                        Client.BlockingCells.Contains(_searchDestination.Value))
                     {
                         _searchDestination = GetRandomPoint(map, Random, current, 50, _lastRoamDirection);
                         _lastRoamDirection = Functions.DirectionFromPoint(current, _searchDestination.Value);
