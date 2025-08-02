@@ -123,7 +123,7 @@ public class BaseAI
     {
         if (_refreshInventory) return;
         _refreshInventory = true;
-        _ = UseInventoryTownTeleportAsync();
+        _inventoryTeleportTask = UseInventoryTownTeleportAsync();
     }
 
     private async Task UseInventoryTownTeleportAsync()
@@ -138,6 +138,19 @@ public class BaseAI
         Client.Log($"Used {name} for inventory refresh");
         _nextInventoryTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(10);
         _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
+    }
+
+    private async Task WaitForInventoryTeleportAsync()
+    {
+        if (_inventoryTeleportTask == null) return;
+        try
+        {
+            await _inventoryTeleportTask;
+        }
+        finally
+        {
+            _inventoryTeleportTask = null;
+        }
     }
 
     protected virtual int WalkDelay => 600;
@@ -218,6 +231,7 @@ public class BaseAI
     private bool _buyingItems;
     private bool _buyAttempted;
     private bool _refreshInventory;
+    private Task? _inventoryTeleportTask;
     private HashSet<ItemType> _pendingBuyTypes = new();
 
     protected virtual int GetItemScore(UserItem item, EquipmentSlot slot)
@@ -1160,6 +1174,7 @@ public class BaseAI
 
     private async Task<bool> SellRepairAndBuyAsync()
     {
+        await WaitForInventoryTeleportAsync();
         Client.IgnoreNpcInteractions = true;
         try
         {
