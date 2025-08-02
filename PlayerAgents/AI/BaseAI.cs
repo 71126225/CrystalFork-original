@@ -417,6 +417,7 @@ public class BaseAI
         foreach (var obj in Client.TrackedObjects.Values)
         {
             if (obj.Type == ObjectType.Item && obj.Location == current &&
+                (!_itemRetryTimes.TryGetValue((obj.Location, obj.Name), out var retry) || DateTime.UtcNow >= retry) &&
                 Client.HasFreeBagSpace() && Client.GetCurrentBagWeight() < Client.GetMaxBagWeight())
             {
                 bestDist = 0;
@@ -942,7 +943,7 @@ public class BaseAI
             Client.Log($"I am heading to {entry.Name} at {loc.X}, {loc.Y} to access storage");
 
         Client.UpdateAction("accessing storage...");
-        bool reached = await Client.MoveWithinRangeAsync(loc, npcId, Globals.DataRange, NpcInteractionType.Storing, WalkDelay, entry?.MapFile);
+        bool reached = await Client.MoveWithinRangeAsync(loc, npcId, 8, NpcInteractionType.Storing, WalkDelay, entry?.MapFile);
         if (!reached) return;
 
         if (npcId == 0 && entry != null)

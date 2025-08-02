@@ -208,8 +208,8 @@ public sealed partial class GameClient
     private TaskCompletionSource<bool>? _takeBackItemTcs;
     private readonly Dictionary<ulong, TaskCompletionSource<S.SellItem>> _sellItemTcs = new();
     private readonly Dictionary<ulong, TaskCompletionSource<bool>> _repairItemTcs = new();
-    private const int NpcResponseDebounceMs = 100;
-    private const int NpcDialogTimeoutMs = 5000;
+    private const int NpcResponseDebounceMs = 250;
+    private const int NpcDialogTimeoutMs = 2000;
 
     private async Task<T?> WithNpcDialogTimeoutAsync<T>(Func<CancellationToken, Task<T>> func, string action, string? details = null)
     {
