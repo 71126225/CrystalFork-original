@@ -821,15 +821,6 @@ public sealed partial class GameClient
                             _lastPickedItem = null;
                         Log($"Sold {itemName} x{sell.Count} to {infoSell.entry.Name}");
                     }
-                    else
-                    {
-                        infoSell.entry.CannotSellItemTypes ??= new List<ItemType>();
-                        if (!infoSell.entry.CannotSellItemTypes.Contains(infoSell.type))
-                        {
-                            infoSell.entry.CannotSellItemTypes.Add(infoSell.type);
-                            _npcMemory.SaveChanges();
-                        }
-                    }
                     _pendingSellChecks.Remove(sell.UniqueID);
                 }
                 break;
