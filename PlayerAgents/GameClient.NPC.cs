@@ -11,7 +11,24 @@ public sealed partial class GameClient
         await SendAsync(new C.CallNPC { ObjectID = objectId, Key = $"[{key}]" });
     }
 
-    public Task<S.NPCResponse> WaitForNpcResponseAsync(CancellationToken cancellationToken = default)
+    public async Task<S.NPCResponse> WaitForNpcResponseAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await WaitForNextNpcResponseAsync(cancellationToken).ConfigureAwait(false);
+        while (true)
+        {
+            var nextTask = WaitForNextNpcResponseAsync(cancellationToken);
+            var delayTask = Task.Delay(NpcResponseDebounceMs, cancellationToken);
+            var finished = await Task.WhenAny(nextTask, delayTask).ConfigureAwait(false);
+            if (finished == nextTask)
+            {
+                response = await nextTask.ConfigureAwait(false);
+                continue;
+            }
+            return response;
+        }
+    }
+
+    private Task<S.NPCResponse> WaitForNextNpcResponseAsync(CancellationToken cancellationToken)
     {
         var tcs = new TaskCompletionSource<S.NPCResponse>();
         _npcResponseTcs = tcs;
@@ -20,52 +37,13 @@ public sealed partial class GameClient
         return tcs.Task;
     }
 
-    public async Task<S.NPCResponse> WaitForLatestNpcResponseAsync(CancellationToken cancellationToken = default)
-    {
-        var response = await WaitForNpcResponseAsync(cancellationToken).ConfigureAwait(false);
-        while (true)
-        {
-            var nextTask = WaitForNpcResponseAsync(cancellationToken);
-            var delayTask = Task.Delay(NpcResponseDebounceMs, cancellationToken);
-            var finished = await Task.WhenAny(nextTask, delayTask).ConfigureAwait(false);
-            if (finished == nextTask)
-            {
-                response = await nextTask.ConfigureAwait(false);
-                continue;
-            }
-            break;
-        }
-        return response;
-    }
-
-    private S.NPCResponse? _queuedNpcResponse;
-    private CancellationTokenSource? _npcResponseCts;
-
     private void DeliverNpcResponse(S.NPCResponse response)
     {
         if (response.Page.Count == 0)
             return;
 
-        _queuedNpcResponse = response;
-        _npcResponseCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _npcResponseCts = cts;
-        FireAndForget(Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(NpcResponseDebounceMs, cts.Token);
-                if (!cts.IsCancellationRequested && _queuedNpcResponse != null)
-                {
-                    _npcResponseTcs?.TrySetResult(_queuedNpcResponse);
-                    _npcResponseTcs = null;
-                    _queuedNpcResponse = null;
-                }
-            }
-            catch (TaskCanceledException)
-            {
-            }
-        }));
+        _npcResponseTcs?.TrySetResult(response);
+        _npcResponseTcs = null;
     }
 
     public Task WaitForNpcGoodsAsync(CancellationToken cancellationToken = default)

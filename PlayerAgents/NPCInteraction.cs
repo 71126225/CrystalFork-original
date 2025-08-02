@@ -39,7 +39,7 @@ public sealed class NPCInteraction
     private async Task<NpcDialogPage> RequestPageAsync(string key, CancellationToken cancellationToken)
     {
         await _client.CallNPCAsync(_npcId, key);
-        var response = await _client.WaitForLatestNpcResponseAsync(cancellationToken);
+        var response = await _client.WaitForNpcResponseAsync(cancellationToken);
         var buttons = ParseButtons(response.Page);
         return new NpcDialogPage(response.Page, buttons);
     }

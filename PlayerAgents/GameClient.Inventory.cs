@@ -311,7 +311,7 @@ public sealed partial class GameClient
         try
         {
             using var cts = new System.Threading.CancellationTokenSource(200);
-            await WaitForLatestNpcResponseAsync(cts.Token);
+            await WaitForNpcResponseAsync(cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -346,7 +346,7 @@ public sealed partial class GameClient
         }
         using (var cts = new CancellationTokenSource(2000))
         {
-            var waitTask = WaitForLatestNpcResponseAsync(cts.Token);
+            var waitTask = WaitForNpcResponseAsync(cts.Token);
             Log($"Accessing repair key...");
             await interaction.SelectFromMainAsync(repairKey, cts.Token);
             try
@@ -361,7 +361,7 @@ public sealed partial class GameClient
         try
         {
             using var cts = new CancellationTokenSource(200);
-            await WaitForLatestNpcResponseAsync(cts.Token);
+            await WaitForNpcResponseAsync(cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -415,7 +415,7 @@ public sealed partial class GameClient
         try
         {
             using var cts = new CancellationTokenSource(200);
-            await WaitForLatestNpcResponseAsync(cts.Token);
+            await WaitForNpcResponseAsync(cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -462,7 +462,7 @@ public sealed partial class GameClient
         try
         {
             using var cts = new CancellationTokenSource(200);
-            await WaitForLatestNpcResponseAsync(cts.Token);
+            await WaitForNpcResponseAsync(cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -526,7 +526,7 @@ public sealed partial class GameClient
         try
         {
             using var cts3 = new CancellationTokenSource(200);
-            await WaitForLatestNpcResponseAsync(cts3.Token);
+            await WaitForNpcResponseAsync(cts3.Token);
         }
         catch (OperationCanceledException)
         {
