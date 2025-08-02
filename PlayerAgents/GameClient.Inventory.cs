@@ -232,6 +232,7 @@ public sealed partial class GameClient
             if (!e.CanBuy || e.BuyItems == null) continue;
             if (e.BuyItems.All(b => ItemInfoDict.ContainsKey(b.Index))) continue;
             if (IsNpcIgnored(e)) continue;
+            if (ResolvedGoodsNpcs.ContainsKey((e.Name, e.MapFile, e.X, e.Y))) continue;
 
             int dist = GetNpcTravelDistance(e, Math.Min(maxDistance, bestDist));
             if (dist > maxDistance || dist >= bestDist) continue;

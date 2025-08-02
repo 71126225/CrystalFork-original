@@ -1207,6 +1207,8 @@ public class BaseAI
         if (!Client.TryFindNearestUnresolvedGoodsNpc(GoodsResolveDistance, out var npcId, out var loc, out var entry))
             return;
 
+        Client.UpdateAction(entry != null ? $"resolving npc {entry.Name}" : "resolving npc");
+
         Client.IgnoreNpcInteractions = true;
         try
         {
@@ -1226,6 +1228,7 @@ public class BaseAI
         {
             Client.IgnoreNpcInteractions = false;
             Client.ResumeNpcInteractions();
+            Client.UpdateAction("roaming...");
         }
     }
 

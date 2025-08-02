@@ -253,6 +253,9 @@ public sealed partial class GameClient
     // Shared across all agents; using ConcurrentDictionary for thread safety
     public static readonly ConcurrentDictionary<int, ItemInfo> ItemInfoDict = new();
 
+    // Track NPCs whose goods have been resolved to avoid repeated resolutions
+    private static readonly ConcurrentDictionary<(string name, string map, int x, int y), bool> ResolvedGoodsNpcs = new();
+
     private static readonly HashSet<byte> AutoHarvestAIs = new() { 1, 2, 4, 5, 7, 9 };
 
     private bool _awaitingHarvest;
@@ -1873,6 +1876,9 @@ public sealed partial class GameClient
             if (!entry.BuyItems.Any(b => b.Index == index))
                 entry.BuyItems.Add(new BuyItem { Index = index });
         }
+
+        // Mark this NPC's goods as resolved so other agents do not repeat the work
+        ResolvedGoodsNpcs[(entry.Name, entry.MapFile, entry.X, entry.Y)] = true;
 
         _npcMemory.SaveChanges();
         _npcGoodsTcs?.TrySetResult(true);
