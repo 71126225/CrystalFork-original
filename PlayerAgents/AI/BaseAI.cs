@@ -33,7 +33,7 @@ public class BaseAI
         EquipmentSlot.Stone
     };
 
-    // Monsters with these AI values are ignored when selecting a target
+    // Monsters with these AI values or an empty name are ignored when selecting a target
     protected static readonly HashSet<byte> IgnoredAIs = new() { 6, 58, 57, 56, 64, 80, 81, 82 };
 
     protected static bool IsOffensiveSlot(EquipmentSlot slot) => OffensiveSlots.Contains(slot);
@@ -451,6 +451,7 @@ public class BaseAI
                 if (_monsterIgnoreTimes.TryGetValue(obj.Id, out var ignore) && DateTime.UtcNow < ignore)
                     continue;
                 if (obj.Dead || obj.Hidden) continue;
+                if (string.IsNullOrEmpty(obj.Name)) continue;
                 if (IsDangerousMonster(obj)) continue;
                 if (IgnoredAIs.Contains(obj.AI)) continue;
                 if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != Client.ObjectId)

@@ -242,7 +242,7 @@ public sealed partial class GameClient
                 break;
             case S.ObjectMonster om:
                 AddTrackedObject(new TrackedObject(om.ObjectID, ObjectType.Monster, om.Name, om.Location, om.Direction, om.AI, om.Dead));
-                if (!string.IsNullOrEmpty(_currentMapFile))
+                if (!string.IsNullOrEmpty(om.Name) && !string.IsNullOrEmpty(_currentMapFile))
                     _monsterMemory.AddSeenOnMap(om.Name, _currentMapFile);
                 break;
             case S.ObjectNPC on:
@@ -326,7 +326,7 @@ public sealed partial class GameClient
                 if (os.AttackerID == _objectId)
                 {
                     _lastAttackTarget = os.ObjectID;
-                    if (_trackedObjects.TryGetValue(os.ObjectID, out var targ) && targ.Type == ObjectType.Monster)
+                    if (_trackedObjects.TryGetValue(os.ObjectID, out var targ) && targ.Type == ObjectType.Monster && !string.IsNullOrEmpty(targ.Name))
                     {
                         targ.EngagedWith = _objectId;
                         targ.LastEngagedTime = DateTime.UtcNow;
@@ -335,12 +335,12 @@ public sealed partial class GameClient
                 else if (_trackedObjects.TryGetValue(os.AttackerID, out var atk) &&
                          _trackedObjects.TryGetValue(os.ObjectID, out var target))
                 {
-                    if (atk.Type == ObjectType.Player && atk.Id != _objectId && target.Type == ObjectType.Monster)
+                    if (atk.Type == ObjectType.Player && atk.Id != _objectId && target.Type == ObjectType.Monster && !string.IsNullOrEmpty(target.Name))
                     {
                         target.EngagedWith = atk.Id;
                         target.LastEngagedTime = DateTime.UtcNow;
                     }
-                    else if (atk.Type == ObjectType.Monster && target.Type == ObjectType.Player && target.Id != _objectId)
+                    else if (atk.Type == ObjectType.Monster && !string.IsNullOrEmpty(atk.Name) && target.Type == ObjectType.Player && target.Id != _objectId)
                     {
                         atk.EngagedWith = target.Id;
                         atk.LastEngagedTime = DateTime.UtcNow;
@@ -404,7 +404,7 @@ public sealed partial class GameClient
                     objD.Dead = true;
                     if (wasBlocking)
                         _blockingCells.TryRemove(objD.Location, out _);
-                    if (objD.Type == ObjectType.Monster && AutoHarvestAIs.Contains(objD.AI) && objD.EngagedWith == _objectId)
+                    if (objD.Type == ObjectType.Monster && !string.IsNullOrEmpty(objD.Name) && AutoHarvestAIs.Contains(objD.AI) && objD.EngagedWith == _objectId)
                     {
                         FireAndForget(Task.Run(async () => await HarvestLoopAsync(objD)));
                     }
@@ -412,7 +412,7 @@ public sealed partial class GameClient
                     {
                         foreach (var m in _trackedObjects.Values)
                         {
-                            if (m.Type == ObjectType.Monster && m.EngagedWith == od.ObjectID)
+                            if (m.Type == ObjectType.Monster && !string.IsNullOrEmpty(m.Name) && m.EngagedWith == od.ObjectID)
                             {
                                 m.EngagedWith = null;
                                 if (_awaitingHarvest && !m.Dead && Functions.MaxDistance(_currentLocation, m.Location) <= 2)

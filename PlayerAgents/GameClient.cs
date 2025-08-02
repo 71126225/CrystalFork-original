@@ -120,7 +120,9 @@ public sealed partial class GameClient
     private readonly ConcurrentDictionary<System.Drawing.Point, int> _blockingCells = new();
 
     private static bool IsBlocking(TrackedObject obj) =>
-        !obj.Dead && !obj.Hidden && (obj.Type == ObjectType.Player || obj.Type == ObjectType.Monster || obj.Type == ObjectType.Merchant);
+        !obj.Dead && !obj.Hidden && (obj.Type == ObjectType.Player ||
+                                     obj.Type == ObjectType.Monster ||
+                                     obj.Type == ObjectType.Merchant);
 
     private void AddTrackedObject(TrackedObject obj)
     {
