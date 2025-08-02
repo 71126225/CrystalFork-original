@@ -2322,7 +2322,7 @@ public sealed partial class GameClient
             var localMap = CurrentMap;
             if (localMap == null) return false;
 
-            if (!localMap.IsWalkable(dest.X, dest.Y) || _blockingCells.ContainsKey(dest))
+            if (range == 0 && (!localMap.IsWalkable(dest.X, dest.Y) || _blockingCells.ContainsKey(dest)))
             {
                 NpcTravelPaused?.Invoke();
                 return false;
