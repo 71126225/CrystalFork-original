@@ -30,6 +30,7 @@ public sealed partial class GameClient
     public event Action? PickUpFailed;
     public event Action<uint>? MonsterHidden;
     public event Action? IsolateCommandReceived;
+    public event Action? NpcTravelPaused;
     private TcpClient? _client;
     private NetworkStream? _stream;
     private long _pingTime;
@@ -58,6 +59,7 @@ public sealed partial class GameClient
     public string CurrentMapFile => _currentMapFile;
     public string CurrentMapName => _currentMapName;
     public NavData? NavData => _navData;
+    public Point? PendingMoveTarget => _pendingMoveTarget;
 
     private LightSetting _timeOfDay = LightSetting.Normal;
     private LightSetting _mapLight = LightSetting.Normal;
@@ -2270,6 +2272,12 @@ public sealed partial class GameClient
         {
             var localMap = CurrentMap;
             if (localMap == null) return false;
+
+            if (!localMap.IsWalkable(dest.X, dest.Y) || _blockingCells.ContainsKey(dest))
+            {
+                NpcTravelPaused?.Invoke();
+                return false;
+            }
 
             if (await ReviveIfDeadAsync())
                 return false;

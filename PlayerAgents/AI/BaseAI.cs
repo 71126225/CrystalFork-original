@@ -48,6 +48,7 @@ public class BaseAI
         Client.WhisperCommandReceived += OnWhisperCommand;
         Client.PickUpFailed += OnPickUpFailed;
         Client.MonsterHidden += OnMonsterHidden;
+        Client.NpcTravelPaused += OnNpcTravelPaused;
 
         Client.ScanInventoryForAutoStore();
     }
@@ -117,6 +118,13 @@ public class BaseAI
             _nextTargetSwitchTime = DateTime.MinValue;
             _nextPathFindTime = DateTime.MinValue;
         }
+    }
+
+    private void OnNpcTravelPaused()
+    {
+        Client.Log("NPC destination is blocked, pausing travel");
+        _travelPauseUntil = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        Client.UpdateAction("roaming...");
     }
 
     private void TriggerInventoryRefresh()
@@ -827,9 +835,15 @@ public class BaseAI
     private async Task<NpcInteractionResult> InteractWithNpcAsync(Point location, uint npcId, NpcEntry? entry,
         NpcInteractionType interactionType, IReadOnlyList<(UserItem item, ushort count)>? sellItems = null)
     {
+        if (DateTime.UtcNow < _travelPauseUntil)
+        {
+            Client.Log("NPC pathing paused");
+            Client.UpdateAction("roaming...");
+            return NpcInteractionResult.PathFailed;
+        }
+
         Client.Log($"Moving to NPC {entry?.Name ?? npcId.ToString()} at {location.X},{location.Y}");
-        bool reached = false;
-        reached = await Client.MoveWithinRangeAsync(location, npcId, Globals.DataRange, interactionType, WalkDelay, entry?.MapFile);
+        bool reached = await Client.MoveWithinRangeAsync(location, npcId, Globals.DataRange, interactionType, WalkDelay, entry?.MapFile);
         if (!reached)
         {
             Client.Log($"Could not path to {entry?.Name ?? npcId.ToString()}");
@@ -944,6 +958,8 @@ public class BaseAI
 
     private async Task HandleStorageAsync()
     {
+        if (DateTime.UtcNow < _travelPauseUntil) return;
+
         bool needToStore = Client.PendingStorageItems.Any();
         bool storageLoaded = Client.Storage != null;
 
@@ -1204,6 +1220,8 @@ public class BaseAI
 
     private async Task ResolveNearbyGoodsAsync()
     {
+        if (DateTime.UtcNow < _travelPauseUntil) return;
+
         if (!Client.TryFindNearestUnresolvedGoodsNpc(GoodsResolveDistance, out var npcId, out var loc, out var entry))
             return;
 
@@ -1216,7 +1234,8 @@ public class BaseAI
                 Client.Log($"Resolving goods at {entry.Name} at {loc.X}, {loc.Y}");
 
             bool reached = await Client.MoveWithinRangeAsync(loc, npcId, Globals.DataRange, NpcInteractionType.Buying, WalkDelay, entry?.MapFile);
-            if (!reached) return;
+            if (!reached)
+                return;
 
             if (npcId == 0 && entry != null)
                 npcId = await Client.ResolveNpcIdAsync(entry);
@@ -1377,7 +1396,7 @@ public class BaseAI
                 if (DateTime.UtcNow >= kv.Value)
                     _monsterIgnoreTimes.Remove(kv.Key);
 
-            if (!Client.IsProcessingNpc && Client.TryDequeueNpc(out var npcId, out var entry))
+            if (!Client.IsProcessingNpc && DateTime.UtcNow >= _travelPauseUntil && Client.TryDequeueNpc(out var npcId, out var entry))
             {
                 var npcLoc = new Point(entry.X, entry.Y);
                 _ = await InteractWithNpcAsync(npcLoc, npcId, entry, NpcInteractionType.General);
