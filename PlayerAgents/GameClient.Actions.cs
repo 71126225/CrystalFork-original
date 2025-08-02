@@ -98,6 +98,17 @@ public sealed partial class GameClient
         await SendAsync(attack);
     }
 
+    public async Task ToggleSpellAsync(Spell spell, bool canUse = true)
+    {
+        if (_stream == null) return;
+        if (!HasMagic(spell)) return;
+        await SendAsync(new C.SpellToggle { Spell = spell, CanUse = canUse });
+        if (spell == Spell.Slaying)
+            _slaying = canUse;
+        else if (spell == Spell.DoubleSlash)
+            _doubleSlash = canUse;
+    }
+
     public async Task RangeAttackAsync(MirDirection direction, Point targetLocation, uint targetId)
     {
         if (_stream == null) return;

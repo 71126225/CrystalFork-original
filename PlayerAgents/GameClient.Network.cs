@@ -904,8 +904,13 @@ public sealed partial class GameClient
                 }
                 break;
             case S.SpellToggle st:
-                if (st.ObjectID == _objectId && st.Spell == Spell.Slaying)
-                    _slaying = st.CanUse;
+                if (st.ObjectID == _objectId)
+                {
+                    if (st.Spell == Spell.Slaying)
+                        _slaying = st.CanUse;
+                    else if (st.Spell == Spell.DoubleSlash)
+                        _doubleSlash = st.CanUse;
+                }
                 break;
             case S.KeepAlive keep:
                 _pingTime = Environment.TickCount64 - keep.Time;
