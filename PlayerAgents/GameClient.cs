@@ -1519,6 +1519,33 @@ public sealed partial class GameClient
         }
     }
 
+    internal bool TryGetNearbyHarvestInterruptingMonster(out TrackedObject? monster, out int distance, int radius = 2)
+    {
+        foreach (var obj in _trackedObjects.Values)
+        {
+            if (obj.Type != ObjectType.Monster || obj.Dead)
+                continue;
+
+            int dist = Functions.MaxDistance(_currentLocation, obj.Location);
+            if (dist > radius)
+                continue;
+
+            if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != _objectId)
+                continue;
+
+            if (BaseAI.IgnoredAIs.Contains(obj.AI))
+                continue;
+
+            monster = obj;
+            distance = dist;
+            return true;
+        }
+
+        monster = null;
+        distance = int.MaxValue;
+        return false;
+    }
+
     private async Task HarvestLoopAsync(TrackedObject monster)
     {
         _awaitingHarvest = true;
@@ -1546,9 +1573,7 @@ public sealed partial class GameClient
             if (!HasFreeBagSpace() || GetCurrentBagWeight() >= GetMaxBagWeight())
                 break;
 
-            if (_trackedObjects.Values.Any(o => o.Type == ObjectType.Monster && !o.Dead &&
-                Functions.MaxDistance(_currentLocation, o.Location) <= 2 &&
-                (!o.EngagedWith.HasValue || o.EngagedWith.Value == _objectId)))
+            if (TryGetNearbyHarvestInterruptingMonster(out _, out _))
             {
                 await Task.Delay(HarvestDelay);
                 continue;

@@ -34,7 +34,7 @@ public class BaseAI
     };
 
     // Monsters with these AI values or an empty name are ignored when selecting a target
-    protected static readonly HashSet<byte> IgnoredAIs = new() { 6, 58, 57, 56, 64, 80, 81, 82 };
+    internal static readonly HashSet<byte> IgnoredAIs = new() { 6, 58, 57, 56, 64, 80, 81, 82 };
 
     protected static bool IsOffensiveSlot(EquipmentSlot slot) => OffensiveSlots.Contains(slot);
 
@@ -1781,13 +1781,11 @@ public class BaseAI
         if (!Client.IsHarvesting) return false;
 
         var current = Client.CurrentLocation;
-        var target = FindClosestTarget(current, out int dist);
-        if (target != null && target.Type == ObjectType.Monster && dist <= 2 &&
-            !IgnoredAIs.Contains(target.AI))
+        if (Client.TryGetNearbyHarvestInterruptingMonster(out var monster, out int dist))
         {
             Client.CancelHarvesting();
-            if (dist <= 1 && DateTime.UtcNow >= _nextAttackTime)
-                await AttackMonsterAsync(target, current);
+            if (monster != null && dist <= 1 && DateTime.UtcNow >= _nextAttackTime)
+                await AttackMonsterAsync(monster, current);
             return false;
         }
 
