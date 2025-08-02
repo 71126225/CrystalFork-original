@@ -229,6 +229,9 @@ internal class Program
                     toDrop = runningClients.Where(c => c != isolator).ToList();
 
                 foreach (var c in toDrop)
+                    c.StopProcessing();
+
+                foreach (var c in toDrop)
                 {
                     await c.DisconnectAsync();
                     lock (clientLock) runningClients.Remove(c);

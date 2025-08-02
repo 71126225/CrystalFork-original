@@ -19,4 +19,9 @@ public sealed partial class GameClient
         _client = null;
         _cts.Cancel();
     }
+
+    public void StopProcessing()
+    {
+        _cts.Cancel();
+    }
 }
