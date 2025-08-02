@@ -2292,7 +2292,7 @@ public sealed partial class GameClient
                 await Task.Delay(delay);
 
                 if (!string.Equals(_currentMapFile, startMap, StringComparison.OrdinalIgnoreCase))
-                    return true;
+                    return false;
 
                 localMap = CurrentMap;
                 if (localMap == null)
@@ -2359,7 +2359,8 @@ public sealed partial class GameClient
                     return false;
                 }
                 Log($"Travelling via {step.SourceMap} -> {step.DestinationMap}");
-                if (!await MoveWithinMapAsync(new Point(step.SourceX, step.SourceY), 0))
+                bool reachedStep = await MoveWithinMapAsync(new Point(step.SourceX, step.SourceY), 0);
+                if (!reachedStep && Path.GetFileNameWithoutExtension(_currentMapFile) == step.SourceMap)
                 {
                     CurrentNpcInteraction = NpcInteractionType.General;
                     return false;
