@@ -7,6 +7,7 @@ public sealed class MonsterEntry
 {
     public string Name { get; set; } = string.Empty;
     public int Damage { get; set; }
+    public int RepulseAt { get; set; }
     public List<string> SeenOnMaps { get; set; } = new();
 }
 
@@ -80,6 +81,38 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
         {
             ReloadIfUpdated();
             return _lookup.TryGetValue(monsterName, out var entry) ? entry.Damage : 0;
+        }
+    }
+
+    public void RecordRepulseAt(string monsterName, int level)
+    {
+        bool changed = false;
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            if (!_lookup.TryGetValue(monsterName, out var entry))
+            {
+                entry = new MonsterEntry { Name = monsterName, RepulseAt = level };
+                _entries.Add(entry);
+                _lookup[monsterName] = entry;
+                changed = true;
+            }
+            else if (entry.RepulseAt == 0 || level < entry.RepulseAt)
+            {
+                entry.RepulseAt = level;
+                changed = true;
+            }
+        }
+        if (changed)
+            Save();
+    }
+
+    public int GetRepulseAt(string monsterName)
+    {
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            return _lookup.TryGetValue(monsterName, out var entry) ? entry.RepulseAt : 0;
         }
     }
 }

@@ -317,6 +317,7 @@ public sealed partial class GameClient
                 break;
             case S.ObjectPushed opu:
                 UpdateTrackedObject(opu.ObjectID, opu.Location, opu.Direction);
+                _pushedObjects[opu.ObjectID] = (opu.Direction, DateTime.UtcNow);
                 if (opu.ObjectID == _objectId)
                 {
                     CancelMovementDeleteCheck();

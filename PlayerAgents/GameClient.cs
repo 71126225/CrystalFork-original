@@ -89,6 +89,8 @@ public sealed partial class GameClient
     private uint? _lastAttackTarget;
     private uint? _lastStruckAttacker;
 
+    private readonly ConcurrentDictionary<uint, (MirDirection Direction, DateTime Time)> _pushedObjects = new();
+
     private bool _dead;
 
     private bool _slaying;
@@ -162,6 +164,24 @@ public sealed partial class GameClient
                     _blockingCells.TryRemove(oldLoc, out _);
             }
         }
+    }
+
+    public bool WasObjectPushedSince(uint objectId, MirDirection pushDir, DateTime since)
+    {
+        if (_pushedObjects.TryGetValue(objectId, out var info))
+        {
+            if (info.Time >= since && Functions.ReverseDirection(info.Direction) == pushDir)
+            {
+                _pushedObjects.TryRemove(objectId, out _);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void ClearPushedObjects()
+    {
+        _pushedObjects.Clear();
     }
 
     private void SetTrackedObjectHidden(uint id, bool hidden)

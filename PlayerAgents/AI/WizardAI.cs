@@ -2,6 +2,7 @@ using Shared;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading.Tasks;
 using PlayerAgents.Map;
 
@@ -161,6 +162,30 @@ public sealed class WizardAI : BaseAI
 
         if (dist <= retreatRange)
         {
+            if (dist <= 1)
+            {
+                var repulse = Client.Magics.FirstOrDefault(m => m.Spell == Spell.Repulsion);
+                if (repulse != null && DateTime.UtcNow >= _nextSpellTime)
+                {
+                    var targetId = target.Id;
+                    var pushDir = Functions.DirectionFromPoint(current, target.Location);
+                    var castTime = DateTime.UtcNow;
+
+                    await Client.CastMagicAsync(Spell.Repulsion, MirDirection.Up, current, Client.ObjectId);
+                    RecordAttackTime();
+                    _nextSpellTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(1000);
+                        if (Client.WasObjectPushedSince(targetId, pushDir, castTime))
+                        {
+                            Client.MonsterMemory.RecordRepulseAt(target.Name, Client.Level);
+                        }
+                        Client.ClearPushedObjects();
+                    });
+                }
+            }
+
             var safe = GetRetreatPoint(map, current, target, attackRange, retreatRange, requiresLine);
             if (safe != current)
             {
