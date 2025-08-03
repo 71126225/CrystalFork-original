@@ -217,6 +217,10 @@ public sealed partial class GameClient
                 _classTcs.TrySetResult(info.Class);
                 ReportStatus();
                 break;
+            case S.BaseStatsInfo bsi:
+                _baseStats = bsi.Stats;
+                MarkStatsDirty();
+                break;
             case S.UserLocation loc:
                 if (loc.Location == _currentLocation)
                 {
