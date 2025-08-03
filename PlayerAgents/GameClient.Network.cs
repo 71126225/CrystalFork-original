@@ -910,6 +910,14 @@ public sealed partial class GameClient
                     mag.Experience = ml.Experience;
                 }
                 break;
+            case S.MagicDelay md:
+                if (md.ObjectID == _objectId)
+                {
+                    var magic = _magics.FirstOrDefault(m => m.Spell == md.Spell);
+                    if (magic != null)
+                        magic.Delay = md.Delay;
+                }
+                break;
             case S.SpellToggle st:
                 if (st.ObjectID == _objectId)
                 {
