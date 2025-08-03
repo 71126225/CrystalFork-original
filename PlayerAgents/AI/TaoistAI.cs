@@ -60,7 +60,7 @@ public sealed class TaoistAI : BaseAI
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
-        if (monster.Dead) return;
+        if (monster.Dead || monster.Hidden) return;
 
         var map = Client.CurrentMap;
         var heal = GetMagic(Spell.Healing);
@@ -117,6 +117,10 @@ public sealed class TaoistAI : BaseAI
 
     protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)
     {
+        if (target.Type != ObjectType.Monster)
+            return await base.MoveToTargetAsync(map, current, target, radius);
+        if (target.Dead || target.Hidden)
+            return true;
         var soulFire = GetMagic(Spell.SoulFireBall);
         if (soulFire == null || !HasAmulet())
             return await base.MoveToTargetAsync(map, current, target, radius);

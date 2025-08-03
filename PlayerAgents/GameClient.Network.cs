@@ -406,6 +406,8 @@ public sealed partial class GameClient
                     objD.Dead = true;
                     if (wasBlocking)
                         _blockingCells.TryRemove(objD.Location, out _);
+                    if (objD.Type == ObjectType.Monster)
+                        MonsterDied?.Invoke(od.ObjectID);
                     if (objD.Type == ObjectType.Monster && !string.IsNullOrEmpty(objD.Name) && AutoHarvestAIs.Contains(objD.AI) && objD.EngagedWith == _objectId)
                     {
                         FireAndForget(Task.Run(async () => await HarvestLoopAsync(objD)));

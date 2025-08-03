@@ -49,6 +49,9 @@ public sealed class ArcherAI : BaseAI
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
+        if (monster.Dead)
+            return;
+
         if (!HasBowEquipped())
         {
             await base.AttackMonsterAsync(monster, current);
@@ -79,6 +82,10 @@ public sealed class ArcherAI : BaseAI
 
     protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)
     {
+        if (target.Type != ObjectType.Monster)
+            return await base.MoveToTargetAsync(map, current, target, radius);
+        if (target.Dead)
+            return true;
         if (!HasBowEquipped())
             return await base.MoveToTargetAsync(map, current, target, radius);
 

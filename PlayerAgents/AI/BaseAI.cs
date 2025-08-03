@@ -48,6 +48,7 @@ public class BaseAI
         Client.WhisperCommandReceived += OnWhisperCommand;
         Client.PickUpFailed += OnPickUpFailed;
         Client.MonsterHidden += OnMonsterHidden;
+        Client.MonsterDied += OnMonsterDied;
         Client.NpcTravelPaused += OnNpcTravelPaused;
 
         Client.ScanInventoryForAutoStore();
@@ -109,6 +110,19 @@ public class BaseAI
     private void OnMonsterHidden(uint id)
     {
         _monsterIgnoreTimes[id] = DateTime.UtcNow + MonsterIgnoreDelay;
+        if (_currentTarget != null && _currentTarget.Id == id)
+        {
+            _currentTarget = null;
+            _lostTargetLocation = null;
+            _lostTargetPath = null;
+            _currentRoamPath = null;
+            _nextTargetSwitchTime = DateTime.MinValue;
+            _nextPathFindTime = DateTime.MinValue;
+        }
+    }
+
+    private void OnMonsterDied(uint id)
+    {
         if (_currentTarget != null && _currentTarget.Id == id)
         {
             _currentTarget = null;
@@ -586,6 +600,12 @@ public class BaseAI
                 await Client.PickUpAsync();
             }
             _itemRetryTimes[(target.Location, target.Name)] = DateTime.UtcNow + ItemRetryDelay;
+            _currentTarget = null;
+            return;
+        }
+
+        if (target.Dead || target.Hidden)
+        {
             _currentTarget = null;
             return;
         }

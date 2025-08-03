@@ -29,6 +29,7 @@ public sealed partial class GameClient
     public event Action<string>? WhisperCommandReceived;
     public event Action? PickUpFailed;
     public event Action<uint>? MonsterHidden;
+    public event Action<uint>? MonsterDied;
     public event Action? IsolateCommandReceived;
     public event Action? NpcTravelPaused;
     private TcpClient? _client;

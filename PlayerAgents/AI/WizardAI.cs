@@ -49,7 +49,7 @@ public sealed class WizardAI : BaseAI
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
-        if (monster.Dead) return;
+        if (monster.Dead || monster.Hidden) return;
 
         var map = Client.CurrentMap;
 
@@ -86,7 +86,9 @@ public sealed class WizardAI : BaseAI
 
     protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)
     {
-        if (target.Dead)
+        if (target.Type != ObjectType.Monster)
+            return await base.MoveToTargetAsync(map, current, target, radius);
+        if (target.Dead || target.Hidden)
             return true;
         if (target.AI == 3)
             return await base.MoveToTargetAsync(map, current, target, radius);
