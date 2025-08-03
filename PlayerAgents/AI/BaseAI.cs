@@ -1676,7 +1676,7 @@ public class BaseAI
                         }
                     }
 
-                    if (traveling && _currentRoamPath != null && _currentRoamPath.Count > 1)
+                    if (traveling && _currentRoamPath != null && _currentRoamPath.Count >= 1)
                     {
                         bool moved = await MoveAlongPathAsync(_currentRoamPath, _searchDestination.Value);
                         if (!moved)

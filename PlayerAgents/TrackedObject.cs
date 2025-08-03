@@ -6,7 +6,7 @@ public sealed class TrackedObject
 {
     public uint Id { get; }
     public ObjectType Type { get; }
-    public string Name { get; }
+    public string Name { get; internal set; }
     public Point Location { get; set; }
     public MirDirection Direction { get; set; }
 

@@ -30,6 +30,8 @@ public sealed partial class GameClient
     public event Action? PickUpFailed;
     public event Action<uint>? MonsterHidden;
     public event Action<uint>? MonsterDied;
+    public event Action<uint, string>? MonsterNameChanged;
+    public event Action<uint, Color>? MonsterColourChanged;
     public event Action? IsolateCommandReceived;
     public event Action? NpcTravelPaused;
     private TcpClient? _client;
@@ -88,6 +90,7 @@ public sealed partial class GameClient
 
     private uint? _lastAttackTarget;
     private uint? _lastStruckAttacker;
+    private uint? _tameTargetId;
 
     private readonly ConcurrentDictionary<uint, (MirDirection Direction, DateTime Time)> _pushedObjects = new();
 
@@ -183,6 +186,11 @@ public sealed partial class GameClient
     public void ClearPushedObjects()
     {
         _pushedObjects.Clear();
+    }
+
+    internal void SetTameTarget(uint id)
+    {
+        _tameTargetId = id;
     }
 
     private void SetTrackedObjectHidden(uint id, bool hidden)

@@ -8,6 +8,8 @@ public sealed class MonsterEntry
     public string Name { get; set; } = string.Empty;
     public int Damage { get; set; }
     public int RepulseAt { get; set; }
+    public bool CanTame { get; set; }
+    public int TameAttempts { get; set; }
     public List<string> SeenOnMaps { get; set; } = new();
 }
 
@@ -114,5 +116,69 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
             ReloadIfUpdated();
             return _lookup.TryGetValue(monsterName, out var entry) ? entry.RepulseAt : 0;
         }
+    }
+
+    public bool GetCanTame(string monsterName)
+    {
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            return _lookup.TryGetValue(monsterName, out var entry) && entry.CanTame;
+        }
+    }
+
+    public void SetCanTame(string monsterName, bool canTame = true)
+    {
+        bool changed = false;
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            if (!_lookup.TryGetValue(monsterName, out var entry))
+            {
+                entry = new MonsterEntry { Name = monsterName, CanTame = canTame };
+                _entries.Add(entry);
+                _lookup[monsterName] = entry;
+                changed = true;
+            }
+            else if (entry.CanTame != canTame)
+            {
+                entry.CanTame = canTame;
+                changed = true;
+            }
+        }
+        if (changed)
+            Save();
+    }
+
+    public int GetTameAttempts(string monsterName)
+    {
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            return _lookup.TryGetValue(monsterName, out var entry) ? entry.TameAttempts : 0;
+        }
+    }
+
+    public void IncrementTameAttempts(string monsterName)
+    {
+        bool changed = false;
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            if (!_lookup.TryGetValue(monsterName, out var entry))
+            {
+                entry = new MonsterEntry { Name = monsterName, TameAttempts = 1 };
+                _entries.Add(entry);
+                _lookup[monsterName] = entry;
+                changed = true;
+            }
+            else
+            {
+                entry.TameAttempts++;
+                changed = true;
+            }
+        }
+        if (changed)
+            Save();
     }
 }

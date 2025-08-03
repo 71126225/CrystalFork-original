@@ -87,6 +87,30 @@ public sealed class WizardAI : BaseAI
 
         var map = Client.CurrentMap;
 
+        var electric = Client.Magics.FirstOrDefault(m => m.Spell == Spell.ElectricShock);
+        if (electric != null)
+        {
+            int repulseAt = Client.MonsterMemory.GetRepulseAt(monster.Name);
+            if (repulseAt != 0 && Client.Level > repulseAt && !Client.MonsterMemory.GetCanTame(monster.Name))
+            {
+                int attempts = Client.MonsterMemory.GetTameAttempts(monster.Name);
+
+                bool canAttempt = true;
+                if (attempts % 20 == 0 && attempts > 0)
+                {
+                    int chance = attempts / 20;
+                    canAttempt = Random.Next(chance) == 0;
+                }
+
+                if (canAttempt)
+                {
+                    await TryTameAsync(monster);
+                    Client.MonsterMemory.IncrementTameAttempts(monster.Name);
+                    return;
+                }
+            }
+        }
+
         if (monster.AI == 3)
         {
             await base.AttackMonsterAsync(monster, current);
@@ -116,6 +140,16 @@ public sealed class WizardAI : BaseAI
         {
             await base.AttackMonsterAsync(monster, current);
         }
+    }
+
+    private async Task TryTameAsync(TrackedObject monster)
+    {
+        Client.SetTameTarget(monster.Id);
+        var loc = Client.CurrentLocation;
+        var dir = Functions.DirectionFromPoint(loc, monster.Location);
+        await Client.CastMagicAsync(Spell.ElectricShock, dir, monster.Location, monster.Id);
+        RecordAttackTime();
+        await Task.Delay(AttackDelay);
     }
 
     protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)

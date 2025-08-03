@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.Drawing;
 using C = ClientPackets;
 using S = ServerPackets;
 using Shared;
@@ -430,6 +431,34 @@ public sealed partial class GameClient
                         }
                     }
                 }
+                if (_tameTargetId.HasValue && od.ObjectID == _tameTargetId.Value)
+                    _tameTargetId = null;
+                break;
+            case S.ObjectName on:
+                if (_trackedObjects.TryGetValue(on.ObjectID, out var objN))
+                {
+                    var oldName = objN.Name;
+                    objN.Name = on.Name;
+                    if (_tameTargetId.HasValue && on.ObjectID == _tameTargetId.Value &&
+                        objN.Type == ObjectType.Monster && oldName != on.Name)
+                    {
+                        MonsterMemory.SetCanTame(oldName);
+                        _tameTargetId = null;
+                    }
+                }
+                MonsterNameChanged?.Invoke(on.ObjectID, on.Name);
+                break;
+            case S.ObjectColourChanged oc:
+                if (_trackedObjects.TryGetValue(oc.ObjectID, out var objC))
+                {
+                    if (_tameTargetId.HasValue && oc.ObjectID == _tameTargetId.Value &&
+                        oc.NameColour == Color.Red && objC.Type == ObjectType.Monster)
+                    {
+                        MonsterMemory.SetCanTame(objC.Name);
+                        _tameTargetId = null;
+                    }
+                }
+                MonsterColourChanged?.Invoke(oc.ObjectID, oc.NameColour);
                 break;
             case S.ObjectHarvested oh:
                 UpdateTrackedObject(oh.ObjectID, oh.Location, oh.Direction);
@@ -442,6 +471,8 @@ public sealed partial class GameClient
                     _harvestComplete = true;
                 if (_lastAttackTarget.HasValue && ore.ObjectID == _lastAttackTarget.Value)
                     _lastAttackTarget = null;
+                if (_tameTargetId.HasValue && ore.ObjectID == _tameTargetId.Value)
+                    _tameTargetId = null;
                 break;
             case S.Revived:
                 _movementSaveCts?.Cancel();
