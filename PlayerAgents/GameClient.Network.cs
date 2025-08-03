@@ -910,12 +910,44 @@ public sealed partial class GameClient
                     mag.Experience = ml.Experience;
                 }
                 break;
+            case S.Magic m:
+                if (m.Cast)
+                {
+                    var magic = _magics.FirstOrDefault(x => x.Spell == m.Spell);
+                    if (magic != null)
+                    {
+                        magic.CastTime = Environment.TickCount64;
+                        _spellTime = magic.CastTime + GetSpellTimeDelay(m.Spell);
+                    }
+                }
+                break;
             case S.MagicDelay md:
                 if (md.ObjectID == _objectId)
                 {
                     var magic = _magics.FirstOrDefault(m => m.Spell == md.Spell);
                     if (magic != null)
                         magic.Delay = md.Delay;
+                }
+                break;
+            case S.MagicCast mc:
+                {
+                    var magic = _magics.FirstOrDefault(x => x.Spell == mc.Spell);
+                    if (magic != null)
+                    {
+                        magic.CastTime = Environment.TickCount64;
+                        _spellTime = magic.CastTime + GetSpellTimeDelay(mc.Spell);
+                    }
+                }
+                break;
+            case S.ObjectMagic om:
+                if (om.ObjectID == _objectId && om.Cast)
+                {
+                    var magic = _magics.FirstOrDefault(x => x.Spell == om.Spell);
+                    if (magic != null)
+                    {
+                        magic.CastTime = Environment.TickCount64;
+                        _spellTime = magic.CastTime + GetSpellTimeDelay(om.Spell);
+                    }
                 }
                 break;
             case S.SpellToggle st:

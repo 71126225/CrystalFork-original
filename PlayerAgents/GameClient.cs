@@ -95,6 +95,7 @@ public sealed partial class GameClient
 
     private bool _slaying;
     private bool _doubleSlash;
+    private long _spellTime;
 
     private DateTime _lastMoveTime = DateTime.MinValue;
     private bool _canRun;

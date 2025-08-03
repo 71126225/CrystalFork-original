@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using Shared;
 using C = ClientPackets;
 
@@ -122,9 +123,51 @@ public sealed partial class GameClient
         await SendAsync(attack);
     }
 
+    private static long GetSpellTimeDelay(Spell spell) => spell switch
+    {
+        Spell.ShoulderDash => 2500,
+        Spell.BladeAvalanche => 1500,
+        Spell.SlashingBurst => 1500,
+        Spell.CounterAttack => 100,
+        Spell.PoisonSword => 1500,
+        Spell.HeavenlySword => 1200,
+        Spell.CrescentSlash => 1500,
+        Spell.FlashDash => 250,
+        Spell.StraightShot => 1500,
+        Spell.DoubleShot => 500,
+        Spell.ExplosiveTrap => 1500,
+        Spell.DelayedExplosion => 1500,
+        Spell.BackStep => 2500,
+        Spell.ElementalShot => 1500,
+        Spell.BindingShot or Spell.VampireShot or Spell.PoisonShot or Spell.CrippleShot or Spell.NapalmShot or
+        Spell.SummonVampire or Spell.SummonToad or Spell.SummonSnakes or Spell.Stonetrap => 1000,
+        Spell.FlameField => 2500,
+        _ => 1800
+    };
+
     public async Task CastMagicAsync(Spell spell, MirDirection direction, Point targetLocation, uint targetId)
     {
         if (_stream == null) return;
+        var magicInfo = _magics.FirstOrDefault(m => m.Spell == spell);
+        if (magicInfo == null) return;
+
+        long now = Environment.TickCount64;
+        if (now < _spellTime)
+        {
+            long remaining = _spellTime - now;
+            long seconds = (remaining - 1) / 1000 + 1;
+            Log($"Cannot cast any spell for another {seconds} seconds.");
+            return;
+        }
+
+        if (now <= magicInfo.CastTime + magicInfo.Delay)
+        {
+            long remaining = magicInfo.CastTime + magicInfo.Delay - now;
+            long seconds = (remaining - 1) / 1000 + 1;
+            Log($"Cannot cast {spell} for another {seconds} seconds.");
+            return;
+        }
+
         var magic = new C.Magic
         {
             ObjectID = _objectId,
@@ -135,6 +178,8 @@ public sealed partial class GameClient
             SpellTargetLock = false
         };
         await SendAsync(magic);
+        magicInfo.CastTime = now;
+        _spellTime = now + GetSpellTimeDelay(spell);
     }
 
     public async Task TurnAsync(MirDirection direction)
