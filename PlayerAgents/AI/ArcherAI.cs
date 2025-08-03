@@ -41,46 +41,18 @@ public sealed class ArcherAI : BaseAI
         }
 
         const int attackRange = 7;
-        const int retreatRange = 3;
-        int dist = Functions.MaxDistance(current, monster.Location);
         var map = Client.CurrentMap;
-
-        if (map != null && dist <= retreatRange)
-        {
-            var safe = GetRetreatPoint(map, current, monster, attackRange, retreatRange);
-            if (safe != current)
-            {
-                var path = await FindBufferedPathAsync(map, current, safe, 0);
-                if (path.Count > 0)
-                {
-                    bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, safe);
-                    if (moved)
-                    {
-                        RecordAttackTime();
-                        return;
-                    }
-                    else
-                    {
-                        _cachedShootSpot = null;
-                        _nextShootSpotCheck = DateTime.MinValue;
-                    }
-                }
-            }
-        }
-
-        if (map != null && dist <= attackRange && CanShoot(map, current, monster.Location))
+        if (map != null &&
+            Functions.MaxDistance(current, monster.Location) <= attackRange &&
+            CanShoot(map, current, monster.Location) &&
+            DateTime.UtcNow >= _nextRangeAttackTime)
         {
             var dir = Functions.DirectionFromPoint(current, monster.Location);
             await Client.RangeAttackAsync(dir, monster.Location, monster.Id);
             RecordAttackTime();
             _nextRangeAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
         }
-        else if (map != null)
-        {
-            // Out of range or line of sight blocked; reposition
-            await MoveToTargetAsync(map, current, monster);
-        }
-        else
+        else if (map == null)
         {
             await base.AttackMonsterAsync(monster, current);
         }
@@ -153,14 +125,6 @@ public sealed class ArcherAI : BaseAI
             return true;
         }
 
-        if (DateTime.UtcNow >= _nextRangeAttackTime)
-        {
-            var dir = Functions.DirectionFromPoint(current, target.Location);
-            await Client.RangeAttackAsync(dir, target.Location, target.Id);
-            RecordAttackTime();
-            _nextRangeAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
-        }
-
         if (dist <= retreatRange)
         {
             var safe = GetRetreatPoint(map, current, target, attackRange, retreatRange);
@@ -178,9 +142,10 @@ public sealed class ArcherAI : BaseAI
                     return moved;
                 }
             }
+            return true;
         }
 
-        return true;
+        return false;
     }
 
     private Point GetSafestPoint(MapData map, Point origin, TrackedObject target, int range)

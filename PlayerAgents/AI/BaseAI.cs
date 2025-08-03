@@ -529,8 +529,71 @@ public class BaseAI
 
     protected virtual async Task<bool> MoveToTargetAsync(PlayerAgents.Map.MapData map, Point current, TrackedObject target, int radius = 1)
     {
-        var path = await FindPathAsync(map, current, target.Location, target.Id, radius);
-        return path.Count > 0 && await MoveAlongPathAsync(path, target.Location);
+        int distance = Functions.MaxDistance(current, target.Location);
+
+        if (target.Type == ObjectType.Item)
+        {
+            if (distance > 0)
+            {
+                var path = await FindPathAsync(map, current, target.Location, target.Id, 0);
+                bool moved = path.Count > 0 && await MoveAlongPathAsync(path, target.Location);
+                if (!moved)
+                {
+                    bool blocked = Client.TrackedObjects.Values.Any(o =>
+                        !o.Dead &&
+                        (o.Type == ObjectType.Player || o.Type == ObjectType.Monster) &&
+                        o.Location == target.Location);
+                    var delay = path.Count == 0 || blocked ? UnreachableItemRetryDelay : ItemRetryDelay;
+                    _itemRetryTimes[(target.Location, target.Name)] = DateTime.UtcNow + delay;
+                    _currentTarget = null;
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+        if (ShouldIgnoreDistantTarget(target, distance))
+        {
+            _monsterIgnoreTimes[target.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
+            _currentTarget = null;
+            _nextTargetSwitchTime = DateTime.MinValue;
+            return true;
+        }
+
+        if (distance > radius)
+        {
+            var path = await FindPathAsync(map, current, target.Location, target.Id, radius);
+            bool moved = path.Count > 0 && await MoveAlongPathAsync(path, target.Location);
+            if (!moved)
+            {
+                _monsterIgnoreTimes[target.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
+                _currentTarget = null;
+                _nextTargetSwitchTime = DateTime.MinValue;
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    protected virtual async Task AttackTargetAsync(TrackedObject target, Point current)
+    {
+        if (target.Type == ObjectType.Item)
+        {
+            if (Client.HasFreeBagSpace() && Client.GetCurrentBagWeight() < Client.GetMaxBagWeight())
+            {
+                await Client.PickUpAsync();
+            }
+            _itemRetryTimes[(target.Location, target.Name)] = DateTime.UtcNow + ItemRetryDelay;
+            _currentTarget = null;
+            return;
+        }
+
+        if (DateTime.UtcNow >= _nextAttackTime)
+        {
+            await AttackMonsterAsync(target, current);
+        }
     }
 
     protected virtual bool ShouldIgnoreDistantTarget(TrackedObject target, int distance)
@@ -1470,56 +1533,10 @@ public class BaseAI
                         _nextTargetSwitchTime = DateTime.UtcNow + TargetSwitchInterval;
                 }
 
-                if (closest.Type == ObjectType.Item)
+                bool moved = await MoveToTargetAsync(map, current, closest, closest.Type == ObjectType.Item ? 0 : 1);
+                if (!moved)
                 {
-                    if (distance > 0)
-                    {
-                        var path = await FindPathAsync(map, current, closest.Location, closest.Id, 0);
-                        bool moved = path.Count > 0 && await MoveAlongPathAsync(path, closest.Location);
-                        if (!moved)
-                        {
-                            bool blocked = Client.TrackedObjects.Values.Any(o =>
-                                !o.Dead &&
-                                (o.Type == ObjectType.Player || o.Type == ObjectType.Monster) &&
-                                o.Location == closest.Location);
-                            var delay = path.Count == 0 || blocked ? UnreachableItemRetryDelay : ItemRetryDelay;
-                            _itemRetryTimes[(closest.Location, closest.Name)] = DateTime.UtcNow + delay;
-                            _currentTarget = null;
-                        }
-                    }
-                    else
-                    {
-                        if (Client.HasFreeBagSpace() && Client.GetCurrentBagWeight() < Client.GetMaxBagWeight())
-                        {
-                            await Client.PickUpAsync();
-                        }
-                        _itemRetryTimes[(closest.Location, closest.Name)] = DateTime.UtcNow + ItemRetryDelay;
-                        _currentTarget = null;
-                    }
-                }
-                else
-                {
-                    if (ShouldIgnoreDistantTarget(closest, distance))
-                    {
-                        _monsterIgnoreTimes[closest.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
-                        _currentTarget = null;
-                        _nextTargetSwitchTime = DateTime.MinValue;
-                    }
-                    else if (distance > 1)
-                    {
-                        bool moved = await MoveToTargetAsync(map, current, closest);
-                        if (!moved)
-                        {
-                            // ignore unreachable targets
-                            _monsterIgnoreTimes[closest.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
-                            _currentTarget = null;
-                            _nextTargetSwitchTime = DateTime.MinValue;
-                        }
-                    }
-                    else if (DateTime.UtcNow >= _nextAttackTime)
-                    {
-                        await AttackMonsterAsync(closest, current);
-                    }
+                    await AttackTargetAsync(closest, current);
                 }
             }
             else
@@ -1784,8 +1801,8 @@ public class BaseAI
         if (Client.TryGetNearbyHarvestInterruptingMonster(out var monster, out int dist))
         {
             Client.CancelHarvesting();
-            if (monster != null && dist <= 1 && DateTime.UtcNow >= _nextAttackTime)
-                await AttackMonsterAsync(monster, current);
+            if (monster != null && dist <= 1)
+                await AttackTargetAsync(monster, current);
             return false;
         }
 

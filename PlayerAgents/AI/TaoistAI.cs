@@ -15,6 +15,7 @@ public sealed class TaoistAI : BaseAI
 
     private void RecordSpellTime()
     {
+        RecordAttackTime();
         _nextSpellTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
     }
 
@@ -77,9 +78,7 @@ public sealed class TaoistAI : BaseAI
         var poison = GetMagic(Spell.Poisoning);
         var soulFire = GetMagic(Spell.SoulFireBall);
         int attackRange = soulFire?.Range > 0 ? soulFire.Range : 7;
-        const int retreatRange = 3;
         int dist = Functions.MaxDistance(current, monster.Location);
-        bool highDamage = Client.MonsterMemory.GetDamage(monster.Name) > Client.GetMaxHP() / 5;
 
         if (poison != null && HasAmulet(1) && DateTime.UtcNow >= _nextSpellTime)
         {
@@ -101,60 +100,19 @@ public sealed class TaoistAI : BaseAI
             bool requiresLine = CanFlySpells.List.Contains(Spell.SoulFireBall);
             bool canCast = map != null && dist <= attackRange && (!requiresLine || CanCast(map, current, monster.Location));
 
-            if (highDamage)
+            if (canCast && DateTime.UtcNow >= _nextSpellTime)
             {
-                if (dist <= retreatRange && map != null)
-                {
-                    var safe = GetRetreatPoint(map, current, monster, attackRange, retreatRange, requiresLine);
-                    if (safe != current)
-                    {
-                        var path = await FindBufferedPathAsync(map, current, safe, 0);
-                        if (path.Count > 0)
-                        {
-                            await MovementHelper.MoveAlongPathAsync(Client, path, safe);
-                            RecordAttackTime();
-                            return;
-                        }
-                    }
-                }
-
-                if (canCast && DateTime.UtcNow >= _nextSpellTime)
-                {
-                    var dir = Functions.DirectionFromPoint(current, monster.Location);
-                    await Client.CastMagicAsync(Spell.SoulFireBall, dir, monster.Location, monster.Id);
-                    RecordSpellTime();
-                    return;
-                }
-
-                if (!canCast && map != null)
-                {
-                    await MoveToTargetAsync(map, current, monster, attackRange - 1);
-                    return;
-                }
-            }
-            else
-            {
-                if (canCast && DateTime.UtcNow >= _nextSpellTime)
-                {
-                    var dir = Functions.DirectionFromPoint(current, monster.Location);
-                    await Client.CastMagicAsync(Spell.SoulFireBall, dir, monster.Location, monster.Id);
-                    RecordSpellTime();
-                    return;
-                }
-
-                if (dist <= 1)
-                {
-                    await base.AttackMonsterAsync(monster, current);
-                }
-                else if (!canCast && map != null)
-                {
-                    await MoveToTargetAsync(map, current, monster);
-                }
+                var dir = Functions.DirectionFromPoint(current, monster.Location);
+                await Client.CastMagicAsync(Spell.SoulFireBall, dir, monster.Location, monster.Id);
+                RecordSpellTime();
                 return;
             }
         }
 
-        await base.AttackMonsterAsync(monster, current);
+        if (dist <= 1)
+        {
+            await base.AttackMonsterAsync(monster, current);
+        }
     }
 
     protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)
@@ -175,7 +133,9 @@ public sealed class TaoistAI : BaseAI
             if (!canCast)
             {
                 var path = await FindBufferedPathAsync(map, current, target.Location, 3);
-                return path.Count > 0 && await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
+                if (path.Count > 0)
+                    return await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
+                return true;
             }
 
             if (dist <= retreatRange)
@@ -187,12 +147,19 @@ public sealed class TaoistAI : BaseAI
                     if (path.Count > 0)
                         return await MovementHelper.MoveAlongPathAsync(Client, path, safe);
                 }
+                return true;
             }
 
-            return true;
+            return false;
         }
 
-        return await base.MoveToTargetAsync(map, current, target, radius);
+        if (!canCast)
+        {
+            var path = await FindBufferedPathAsync(map, current, target.Location, 3);
+            return path.Count > 0 && await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
+        }
+
+        return false;
     }
 
     protected override IReadOnlyList<DesiredItem> DesiredItems

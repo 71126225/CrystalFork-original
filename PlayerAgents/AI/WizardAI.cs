@@ -67,34 +67,11 @@ public sealed class WizardAI : BaseAI
         }
 
         int attackRange = magic.Range > 0 ? magic.Range : 7;
-        const int retreatRange = 3;
-        int dist = Functions.MaxDistance(current, monster.Location);
         bool requiresLine = CanFlySpells.List.Contains(magic.Spell);
 
-        if (dist <= retreatRange)
-        {
-            var safe = GetRetreatPoint(map, current, monster, attackRange, retreatRange, requiresLine);
-            if (safe != current)
-            {
-                var path = await FindBufferedPathAsync(map, current, safe, 0);
-                if (path.Count > 0)
-                {
-                    bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, safe);
-                    if (moved)
-                    {
-                        RecordAttackTime();
-                        return;
-                    }
-                    else
-                    {
-                        _cachedCastSpot = null;
-                        _nextCastSpotCheck = DateTime.MinValue;
-                    }
-                }
-            }
-        }
-
-        if (dist <= attackRange && (!requiresLine || CanCast(map, current, monster.Location)))
+        if (Functions.MaxDistance(current, monster.Location) <= attackRange &&
+            (!requiresLine || CanCast(map, current, monster.Location)) &&
+            DateTime.UtcNow >= _nextSpellTime)
         {
             var dir = Functions.DirectionFromPoint(current, monster.Location);
             await Client.CastMagicAsync(magic.Spell, dir, monster.Location, monster.Id);
@@ -103,7 +80,7 @@ public sealed class WizardAI : BaseAI
         }
         else
         {
-            await MoveToTargetAsync(map, current, monster);
+            await base.AttackMonsterAsync(monster, current);
         }
     }
 
@@ -180,14 +157,6 @@ public sealed class WizardAI : BaseAI
             return true;
         }
 
-        if (DateTime.UtcNow >= _nextSpellTime)
-        {
-            var dir = Functions.DirectionFromPoint(current, target.Location);
-            await Client.CastMagicAsync(magic.Spell, dir, target.Location, target.Id);
-            RecordAttackTime();
-            _nextSpellTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
-        }
-
         if (dist <= retreatRange)
         {
             var safe = GetRetreatPoint(map, current, target, attackRange, retreatRange, requiresLine);
@@ -205,9 +174,10 @@ public sealed class WizardAI : BaseAI
                     return moved;
                 }
             }
+            return true;
         }
 
-        return true;
+        return false;
     }
 
     private Point GetSafestPoint(MapData map, Point origin, TrackedObject target, int range)
