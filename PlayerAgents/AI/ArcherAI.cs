@@ -31,6 +31,21 @@ public sealed class ArcherAI : BaseAI
                weapon.Info.RequiredClass.HasFlag(RequiredClass.Archer);
     }
 
+    private ClientMagic? GetBestMagic()
+    {
+        ClientMagic? best = null;
+        int mp = Client.MP;
+        foreach (var magic in Client.Magics)
+        {
+            if (magic.Spell != Spell.StraightShot && magic.Spell != Spell.DoubleShot) continue;
+            int cost = magic.BaseCost + magic.LevelCost * magic.Level;
+            if (cost > mp) continue;
+            if (best == null || cost > best.BaseCost + best.LevelCost * best.Level)
+                best = magic;
+        }
+        return best;
+    }
+
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
@@ -40,7 +55,8 @@ public sealed class ArcherAI : BaseAI
             return;
         }
 
-        const int attackRange = 7;
+        var magic = GetBestMagic();
+        int attackRange = magic != null && magic.Range > 0 ? magic.Range : 7;
         var map = Client.CurrentMap;
         if (map != null &&
             Functions.MaxDistance(current, monster.Location) <= attackRange &&
@@ -48,7 +64,10 @@ public sealed class ArcherAI : BaseAI
             DateTime.UtcNow >= _nextRangeAttackTime)
         {
             var dir = Functions.DirectionFromPoint(current, monster.Location);
-            await Client.RangeAttackAsync(dir, monster.Location, monster.Id);
+            if (magic != null)
+                await Client.CastMagicAsync(magic.Spell, dir, monster.Location, monster.Id);
+            else
+                await Client.RangeAttackAsync(dir, monster.Location, monster.Id);
             RecordAttackTime();
             _nextRangeAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
         }
@@ -63,7 +82,8 @@ public sealed class ArcherAI : BaseAI
         if (!HasBowEquipped())
             return await base.MoveToTargetAsync(map, current, target, radius);
 
-        const int attackRange = 7;
+        var magic = GetBestMagic();
+        int attackRange = magic != null && magic.Range > 0 ? magic.Range : 7;
         const int retreatRange = 3;
 
         int dist = Functions.MaxDistance(current, target.Location);
