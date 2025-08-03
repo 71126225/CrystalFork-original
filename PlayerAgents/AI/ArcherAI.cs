@@ -34,14 +34,47 @@ public sealed class ArcherAI : BaseAI
     private ClientMagic? GetBestMagic()
     {
         ClientMagic? best = null;
+        int bestReq = -1;
+        int bestCastLevel = 0;
         int mp = Client.MP;
+        int playerLevel = Client.Level;
         foreach (var magic in Client.Magics)
         {
             if (magic.Spell != Spell.StraightShot && magic.Spell != Spell.DoubleShot) continue;
-            int cost = magic.BaseCost + magic.LevelCost * magic.Level;
+
+            int availableLevel = 0;
+            if (playerLevel >= magic.Level3) availableLevel = 3;
+            else if (playerLevel >= magic.Level2) availableLevel = 2;
+            else if (playerLevel >= magic.Level1) availableLevel = 1;
+
+            int castLevel = Math.Min(magic.Level + 1, availableLevel);
+            if (castLevel == 0) continue;
+
+            int cost = magic.BaseCost + magic.LevelCost * (castLevel - 1);
             if (cost > mp) continue;
-            if (best == null || cost > best.BaseCost + best.LevelCost * best.Level)
+
+            int req = availableLevel switch
+            {
+                3 => magic.Level3,
+                2 => magic.Level2,
+                _ => magic.Level1
+            };
+
+            if (best == null)
+            {
                 best = magic;
+                bestReq = req;
+                bestCastLevel = availableLevel;
+                continue;
+            }
+
+            int bestCost = best.BaseCost + best.LevelCost * (bestCastLevel - 1);
+            if (req > bestReq || (req == bestReq && cost > bestCost))
+            {
+                best = magic;
+                bestReq = req;
+                bestCastLevel = castLevel;
+            }
         }
         return best;
     }
