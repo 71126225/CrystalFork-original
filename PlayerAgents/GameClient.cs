@@ -139,6 +139,13 @@ public sealed partial class GameClient
 
     private void AddTrackedObject(TrackedObject obj)
     {
+        // If an object with this id is already tracked, remove it first so
+        // that the blocking cell information stays in sync.  This can happen
+        // when the server re-sends an object without a corresponding remove
+        // message (e.g. after a warp or map reload).
+        if (_trackedObjects.ContainsKey(obj.Id))
+            RemoveTrackedObject(obj.Id);
+
         _trackedObjects[obj.Id] = obj;
         if (IsBlocking(obj))
             _blockingCells.AddOrUpdate(obj.Location, 1, (_, v) => v + 1);

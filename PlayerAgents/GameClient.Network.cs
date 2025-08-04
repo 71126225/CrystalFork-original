@@ -185,6 +185,7 @@ public sealed partial class GameClient
                 _currentLocation = mc.Location;
                 _navData?.Remove(_currentLocation);
                 _trackedObjects.Clear();
+                _blockingCells.Clear();
                 _ = LoadMapAsync();
                 StartMapExpTracking(_currentMapFile);
                 _lastMapChangeTime = DateTime.UtcNow;
