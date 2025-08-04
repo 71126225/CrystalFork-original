@@ -149,7 +149,7 @@ public sealed class WizardAI : BaseAI
 
                                 foreach (var obj in Client.TrackedObjects.Values)
                                 {
-                                    if (obj.Type != ObjectType.Monster || obj.Dead || obj.Hidden || obj.AI == 3) continue;
+                                    if (obj.Type != ObjectType.Monster || obj.Dead || obj.Hidden || obj.Tamed || obj.AI == 3) continue;
                                     if (obj.Location != p) continue;
                                     if (obj.Id == monster.Id) targetFound = true;
                                     else otherFound = true;
@@ -350,7 +350,7 @@ public sealed class WizardAI : BaseAI
                 int min = 6;
                 foreach (var obj in Client.TrackedObjects.Values)
                 {
-                    if (obj.Type != ObjectType.Monster || obj.Dead || obj.Id == target.Id) continue;
+                    if (obj.Type != ObjectType.Monster || obj.Dead || obj.Tamed || obj.Id == target.Id) continue;
                     int d = Functions.MaxDistance(p, obj.Location);
                     if (d <= 6 && d < min) min = d;
                 }

@@ -1577,6 +1577,9 @@ public sealed partial class GameClient
             if (BaseAI.IgnoredAIs.Contains(obj.AI))
                 continue;
 
+            if (obj.Tamed)
+                continue;
+
             monster = obj;
             distance = dist;
             return true;

@@ -249,8 +249,10 @@ public sealed partial class GameClient
                 AddTrackedObject(new TrackedObject(op.ObjectID, ObjectType.Player, op.Name, op.Location, op.Direction));
                 break;
             case S.ObjectMonster om:
-                AddTrackedObject(new TrackedObject(om.ObjectID, ObjectType.Monster, om.Name, om.Location, om.Direction, om.AI, om.Dead));
-                if (!string.IsNullOrEmpty(om.Name) && !string.IsNullOrEmpty(_currentMapFile))
+                var monsterObj = new TrackedObject(om.ObjectID, ObjectType.Monster, om.Name, om.Location, om.Direction, om.AI, om.Dead);
+                monsterObj.Tamed = IsTamedName(om.Name);
+                AddTrackedObject(monsterObj);
+                if (!monsterObj.Tamed && !string.IsNullOrEmpty(om.Name) && !string.IsNullOrEmpty(_currentMapFile))
                     _monsterMemory.AddSeenOnMap(om.Name, _currentMapFile);
                 break;
             case S.ObjectNPC on:
@@ -362,7 +364,8 @@ public sealed partial class GameClient
                     string name = _trackedObjects.TryGetValue(_lastStruckAttacker.Value, out var atk) ? atk.Name : "Unknown";
                     Log($"{name} has attacked me for {-di.Damage} damage");
                     int recordDamage = -di.Damage + GetStatTotal(Stat.MaxAC);
-                    _monsterMemory.RecordDamage(name, recordDamage);
+                    if (atk == null || !atk.Tamed)
+                        _monsterMemory.RecordDamage(name, recordDamage);
                     _lastStruckAttacker = null;
                 }
                 else if (_lastAttackTarget.HasValue && di.ObjectID == _lastAttackTarget.Value)
@@ -440,8 +443,9 @@ public sealed partial class GameClient
                 {
                     var oldName = objN.Name;
                     objN.Name = on.Name;
+                    objN.Tamed = IsTamedName(on.Name);
                     if (_tameTargetId.HasValue && on.ObjectID == _tameTargetId.Value &&
-                        objN.Type == ObjectType.Monster && oldName != on.Name)
+                        objN.Type == ObjectType.Monster && oldName != on.Name && objN.Tamed)
                     {
                         MonsterMemory.SetCanTame(oldName);
                         _tameTargetId = null;
@@ -453,11 +457,13 @@ public sealed partial class GameClient
                 if (_trackedObjects.TryGetValue(oc.ObjectID, out var objC))
                 {
                     if (_tameTargetId.HasValue && oc.ObjectID == _tameTargetId.Value &&
-                        oc.NameColour == Color.Red && objC.Type == ObjectType.Monster)
+                        objC.Type == ObjectType.Monster && IsTamedName(objC.Name))
                     {
                         MonsterMemory.SetCanTame(objC.Name);
                         _tameTargetId = null;
                     }
+                    if (objC.Type == ObjectType.Monster)
+                        objC.Tamed = IsTamedName(objC.Name);
                 }
                 MonsterColourChanged?.Invoke(oc.ObjectID, oc.NameColour);
                 break;
@@ -1108,5 +1114,12 @@ public sealed partial class GameClient
             }
             _pendingRepairChecks.Remove(kv.Key);
         }
+    }
+
+    private static bool IsTamedName(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        int open = name.LastIndexOf('(');
+        return open >= 0 && name.EndsWith(")") && open < name.Length - 1;
     }
 }

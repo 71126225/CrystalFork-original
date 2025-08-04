@@ -13,6 +13,7 @@ public sealed class TrackedObject
     public byte AI { get; }
     public bool Dead { get; set; }
     public bool Hidden { get; set; }
+    public bool Tamed { get; set; }
 
     // Records which player this monster is currently engaged with and when that
     // engagement started. Null if not engaged.

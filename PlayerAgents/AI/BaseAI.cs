@@ -475,6 +475,7 @@ public class BaseAI
                 if (_monsterIgnoreTimes.TryGetValue(obj.Id, out var ignore) && DateTime.UtcNow < ignore)
                     continue;
                 if (obj.Dead || obj.Hidden) continue;
+                if (obj.Tamed) continue;
                 if (string.IsNullOrEmpty(obj.Name)) continue;
                 if (IsDangerousMonster(obj)) continue;
                 if (IgnoredAIs.Contains(obj.AI)) continue;
@@ -623,6 +624,8 @@ public class BaseAI
 
     private bool IsDangerousMonster(TrackedObject monster)
     {
+        if (monster.Tamed)
+            return false;
         if (IgnoredAIs.Contains(monster.AI))
             return false;
         int dmg = Client.MonsterMemory.GetDamage(monster.Name);
