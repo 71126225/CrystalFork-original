@@ -54,9 +54,9 @@ internal static class MapParser
                 if ((BitConverter.ToInt16(bytes, offset) & 0x8000) != 0) walkable = false;
                 offset += 4;
 
-                byte door = bytes[offset];
+                byte door = (byte)(bytes[offset++] & 0x7F);
                 if (door > 0) doors[x, y] = door;
-                offset += 3;
+                offset += 2;
 
                 offset += 1; // light
 
@@ -87,9 +87,9 @@ internal static class MapParser
                 if (((BitConverter.ToInt16(bytes, offset) ^ xor) & 0x8000) != 0) walkable = false;
                 offset += 2;
 
-                byte door = bytes[offset];
+                byte door = (byte)(bytes[offset++] & 0x7F);
                 if (door > 0) doors[x, y] = door;
-                offset += 5;
+                offset += 4;
 
                 offset += 1; // light
                 offset += 1; // unknown
@@ -120,9 +120,9 @@ internal static class MapParser
                 if ((BitConverter.ToInt16(bytes, offset) & 0x8000) != 0) walkable = false;
                 offset += 2;
 
-                byte door = bytes[offset];
+                byte door = (byte)(bytes[offset++] & 0x7F);
                 if (door > 0) doors[x, y] = door;
-                offset += 5;
+                offset += 4;
 
                 offset += 1; // light
                 offset += 2;
@@ -153,9 +153,9 @@ internal static class MapParser
                 if ((BitConverter.ToInt16(bytes, offset) & 0x8000) != 0) walkable = false;
                 offset += 2;
 
-                byte door = bytes[offset];
+                byte door = (byte)(bytes[offset++] & 0x7F);
                 if (door > 0) doors[x, y] = door;
-                offset += 12;
+                offset += 11;
 
                 offset += 1; // light
                 offset += 17;
@@ -187,9 +187,9 @@ internal static class MapParser
                 if ((BitConverter.ToInt16(bytes, offset) & 0x8000) != 0) walkable = false;
 
                 offset += 4;
-                byte door = bytes[offset];
+                byte door = (byte)(bytes[offset++] & 0x7F);
                 if (door > 0) doors[x, y] = door;
-                offset += 6;
+                offset += 5;
                 walk[x, y] = walkable;
             }
         }
@@ -260,9 +260,9 @@ internal static class MapParser
                 if ((BitConverter.ToInt16(bytes, offset) & 0x8000) != 0) walkable = false;
 
                 offset += 2;
-                byte door = bytes[offset];
+                byte door = (byte)(bytes[offset++] & 0x7F);
                 if (door > 0) doors[x, y] = door;
-                offset += 4;
+                offset += 3;
 
                 offset += 1; // light
                 offset += 2;
@@ -292,9 +292,9 @@ internal static class MapParser
                 if ((BitConverter.ToInt16(bytes, offset) & 0x8000) != 0) walkable = false;
                 offset += 2;
 
-                byte door = bytes[offset];
+                byte door = (byte)(bytes[offset++] & 0x7F);
                 if (door > 0) doors[x, y] = door;
-                offset += 11;
+                offset += 10;
 
                 offset += 1; // light
 
