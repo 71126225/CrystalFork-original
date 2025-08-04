@@ -65,6 +65,7 @@ public sealed partial class GameClient
     public string CurrentMapName => _currentMapName;
     public NavData? NavData => _navData;
     public Point? PendingMoveTarget => _pendingMoveTarget;
+    public List<Point>? CurrentPathPoints { get; internal set; }
 
     private LightSetting _timeOfDay = LightSetting.Normal;
     private LightSetting _mapLight = LightSetting.Normal;

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using C = ClientPackets;
 
@@ -74,6 +75,14 @@ public sealed partial class GameClient
         else if (msg.Equals("lastaction", StringComparison.OrdinalIgnoreCase))
         {
             FireAndForget(SendWhisperAsync(sender, LastStorageAction));
+        }
+        else if (msg.Equals("path", StringComparison.OrdinalIgnoreCase))
+        {
+            var points = CurrentPathPoints;
+            string response = (points == null || points.Count == 0)
+                ? "No path"
+                : string.Join(" -> ", points.Select(p => $"{p.X},{p.Y}"));
+            FireAndForget(SendWhisperAsync(sender, response));
         }
         else if (msg.Equals("sell", StringComparison.OrdinalIgnoreCase))
         {

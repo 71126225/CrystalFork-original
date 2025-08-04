@@ -65,7 +65,10 @@ public sealed partial class GameClient
         if (_mapData == null) return;
         byte door = _mapData.GetDoorIndex(p.X, p.Y);
         if (door > 0)
+        {
+            Log($"I am opening door {door} at {p.X}, {p.Y}");
             await SendAsync(new C.Opendoor { DoorIndex = door });
+        }
     }
 
     public bool CanWalk(MirDirection direction)

@@ -537,6 +537,7 @@ public class BaseAI
     private async Task<bool> MoveAlongPathAsync(List<Point> path, Point destination)
     {
         bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, destination);
+        Client.CurrentPathPoints = path.ToList();
         if (moved)
             _lastMoveOrAttackTime = DateTime.UtcNow;
         return moved;
