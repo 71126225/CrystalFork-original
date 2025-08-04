@@ -6,5 +6,6 @@
   ,"AutoScale": true,
   "MaximumConnections": 0,
   "AutoScaleMinCpu": 50.0,
-  "AutoScaleMaxCpu": 60.0
+  "AutoScaleMaxCpu": 60.0,
+  "Debug": false
 }

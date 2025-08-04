@@ -15,6 +15,7 @@ public sealed class AgentStatus
     public int X { get; init; }
     public int Y { get; init; }
     public string Action { get; init; } = string.Empty;
+    public DateTime CycleStart { get; init; }
 }
 
 public interface IAgentLogger
@@ -69,11 +70,13 @@ public sealed class SummaryAgentLogger : IAgentLogger, IDisposable
     private readonly object _lockObj = new();
     private readonly Timer _timer;
     private readonly CpuMonitor _cpu = new();
+    private readonly bool _debug;
     private int _lastLineCount;
     private string? _focusedAgent;
 
-    public SummaryAgentLogger()
+    public SummaryAgentLogger(bool debugEnabled = false)
     {
+        _debug = debugEnabled;
         _timer = new Timer(_ =>
         {
             lock (_lockObj)
@@ -163,6 +166,24 @@ public sealed class SummaryAgentLogger : IAgentLogger, IDisposable
         }
     }
 
+    public void SortByCycleTime()
+    {
+        if (!_debug)
+            return;
+        lock (_lockObj)
+        {
+            _order.Sort((a, b) =>
+            {
+                _status.TryGetValue(a, out var sa);
+                _status.TryGetValue(b, out var sb);
+                var ta = sa != null ? (DateTime.UtcNow - sa.CycleStart).TotalMilliseconds : 0;
+                var tb = sb != null ? (DateTime.UtcNow - sb.CycleStart).TotalMilliseconds : 0;
+                return ta.CompareTo(tb);
+            });
+            Render();
+        }
+    }
+
     private void Render()
     {
         if (_focusedAgent != null) return;
@@ -175,7 +196,9 @@ public sealed class SummaryAgentLogger : IAgentLogger, IDisposable
             var agent = _order[i];
             _status.TryGetValue(agent, out var status);
             var map = Path.GetFileNameWithoutExtension(status.MapFile);
-            string cell = $"{agent} --- Level {status.Level} --- {map} ({status.MapName}) ({status.X},{status.Y}) --- {status.Action}";
+            int cycle = (int)(DateTime.UtcNow - status.CycleStart).TotalMilliseconds;
+            string name = _debug ? $"{agent}({cycle})" : agent;
+            string cell = $"{name} --- Level {status.Level} --- {map} ({status.MapName}) ({status.X},{status.Y}) --- {status.Action}";
             if (cell.Length > colWidth)
                 cell = cell.Substring(0, colWidth);
             cell = cell.PadRight(colWidth);

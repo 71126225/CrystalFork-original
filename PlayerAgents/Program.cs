@@ -28,6 +28,7 @@ public sealed class Config
     public double AutoScaleMinCpu { get; set; } = 50.0;
     public double AutoScaleMaxCpu { get; set; } = 60.0;
     public int AutoScaleBatchSize { get; set; } = 50;
+    public bool Debug { get; set; } = false;
     // Single agent fields for backwards compatibility
     public string AccountID { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
@@ -204,7 +205,7 @@ internal class Program
             SetConsoleFontSize(5);
 
             IAgentLogger logger = agentConfigs.Count > 1
-                ? new SummaryAgentLogger() as IAgentLogger
+                ? new SummaryAgentLogger(config.Debug) as IAgentLogger
                 : new NullAgentLogger();
 
             if (agentConfigs.Count > 1)

@@ -62,6 +62,11 @@ public sealed partial class GameClient
             if (_logger is SummaryAgentLogger summary)
                 summary.EndFocus();
         }
+        else if (msg.Equals("sort", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_logger is SummaryAgentLogger summary)
+                summary.SortByCycleTime();
+        }
         else if (msg.Equals("inventory", StringComparison.OrdinalIgnoreCase))
         {
             FireAndForget(SendInventoryAsync(sender));

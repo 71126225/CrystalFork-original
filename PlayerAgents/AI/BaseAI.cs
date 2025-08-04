@@ -1388,6 +1388,7 @@ public class BaseAI
         _buyAttempted = false;
         while (!Client.Disconnected)
         {
+            Client.StartCycle();
             if (await HandleReviveAsync())
                 continue;
 

@@ -49,6 +49,7 @@ public sealed partial class GameClient
     private string _playerName = string.Empty;
     private string _currentAction = string.Empty;
     private string _lastStorageAction = string.Empty;
+    private DateTime _cycleStart = DateTime.UtcNow;
     private uint _objectId;
     private string _currentMapFile = string.Empty;
     private string _currentMapName = string.Empty;
@@ -960,9 +961,16 @@ public sealed partial class GameClient
             MapName = _currentMapName,
             X = _currentLocation.X,
             Y = _currentLocation.Y,
-            Action = _currentAction
+            Action = _currentAction,
+            CycleStart = _cycleStart
         };
         _logger?.UpdateStatus(PlayerName, status);
+    }
+
+    internal void StartCycle()
+    {
+        _cycleStart = DateTime.UtcNow;
+        ReportStatus();
     }
 
     public void UpdateAction(string action)
