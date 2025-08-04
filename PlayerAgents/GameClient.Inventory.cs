@@ -516,13 +516,24 @@ public sealed partial class GameClient
             try
             {
                 await interaction.SelectFromMainAsync(storageKey, cts2.Token);
-                await Task.WhenAll(waitPageTask, waitDataTask);
+
+                var combinedTask = Task.WhenAll(waitPageTask, waitDataTask);
+                var finished = await Task.WhenAny(combinedTask, Task.Delay(NpcDialogTimeoutMs, cts2.Token));
+                if (finished != combinedTask)
+                {
+                    LogError($"Timed out loading storage data (npc {entry.Name} id {npcId})");
+                    EndTransaction();
+                    UpdateLastStorageAction($"Timeout loading storage at {entry.Name}");
+                    return false;
+                }
+
+                await combinedTask;
                 Log($"Storage page opened successfully at {entry.Name}");
                 UpdateLastStorageAction($"Opened storage page at {entry.Name}");
             }
             catch (OperationCanceledException)
             {
-                LogError($"Timed out waiting for storage page (npc {entry.Name}, key {storageKey})");
+                LogError($"Timed out waiting for storage page (npc {entry.Name} id {npcId}, key {storageKey})");
                 EndTransaction();
                 UpdateLastStorageAction($"Timeout waiting for storage page {entry.Name}");
                 return false;

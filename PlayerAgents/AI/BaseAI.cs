@@ -1073,6 +1073,7 @@ public class BaseAI
         if (!opened)
         {
             Client.LogError($"Failed to open storage with NPC {entry?.Name ?? npcId.ToString()}");
+            Client.UpdateAction("roaming...");
             return;
         }
 

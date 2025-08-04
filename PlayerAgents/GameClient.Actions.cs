@@ -400,10 +400,9 @@ public sealed partial class GameClient
 
         Log($"I am storing {itemName} from slot {from} to storage slot {to}");
         UpdateLastStorageAction($"Storing {itemName} from {from} to {to}");
-        var store = new C.StoreItem { From = from, To = to };
-        var waitTask = WaitForStoreItemAsync();
         using var cts = new CancellationTokenSource(2000);
-        cts.Token.Register(() => _storeItemTcs?.TrySetCanceled());
+        var waitTask = WaitForStoreItemAsync(cts.Token);
+        var store = new C.StoreItem { From = from, To = to };
         try
         {
             await SendAsync(store);
@@ -438,11 +437,10 @@ public sealed partial class GameClient
         int to = FindFreeInventorySlot();
         if (to < 0) return -1;
         Log($"I am taking back {_storage[from]?.Info?.FriendlyName ?? "item"} from storage slot {from} to inventory slot {to}");
-        var req = new C.TakeBackItem { From = from, To = to };
-        var waitTask = WaitForTakeBackItemAsync();
-        await SendAsync(req);
         using var cts = new CancellationTokenSource(2000);
-        cts.Token.Register(() => _takeBackItemTcs?.TrySetCanceled());
+        var waitTask = WaitForTakeBackItemAsync(cts.Token);
+        var req = new C.TakeBackItem { From = from, To = to };
+        await SendAsync(req);
         try
         {
             bool result = await waitTask;
