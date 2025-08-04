@@ -1120,7 +1120,7 @@ public sealed partial class GameClient
         }
     }
 
-    private static bool IsTamedName(string? name)
+    internal static bool IsTamedName(string? name)
     {
         if (string.IsNullOrEmpty(name)) return false;
         int open = name.LastIndexOf('(');

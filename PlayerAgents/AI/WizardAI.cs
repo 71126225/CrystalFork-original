@@ -104,8 +104,9 @@ public sealed class WizardAI : BaseAI
 
                 if (canAttempt)
                 {
+                    var name = monster.Name;
                     await TryTameAsync(monster);
-                    Client.MonsterMemory.IncrementTameAttempts(monster.Name);
+                    Client.MonsterMemory.IncrementTameAttempts(name);
                     return;
                 }
             }

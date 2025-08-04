@@ -32,6 +32,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public void AddSeenOnMap(string monsterName, string mapFile)
     {
+        if (GameClient.IsTamedName(monsterName)) return;
+
         bool added = false;
         lock (_lock)
         {
@@ -56,6 +58,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public void RecordDamage(string monsterName, int damage)
     {
+        if (GameClient.IsTamedName(monsterName)) return;
+
         bool changed = false;
         lock (_lock)
         {
@@ -79,6 +83,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public int GetDamage(string monsterName)
     {
+        if (GameClient.IsTamedName(monsterName)) return 0;
+
         lock (_lock)
         {
             ReloadIfUpdated();
@@ -88,6 +94,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public void RecordRepulseAt(string monsterName, int level)
     {
+        if (GameClient.IsTamedName(monsterName)) return;
+
         bool changed = false;
         lock (_lock)
         {
@@ -111,6 +119,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public int GetRepulseAt(string monsterName)
     {
+        if (GameClient.IsTamedName(monsterName)) return 0;
+
         lock (_lock)
         {
             ReloadIfUpdated();
@@ -120,6 +130,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public bool GetCanTame(string monsterName)
     {
+        if (GameClient.IsTamedName(monsterName)) return false;
+
         lock (_lock)
         {
             ReloadIfUpdated();
@@ -129,6 +141,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public void SetCanTame(string monsterName, bool canTame = true)
     {
+        if (GameClient.IsTamedName(monsterName)) return;
+
         bool changed = false;
         lock (_lock)
         {
@@ -152,6 +166,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public int GetTameAttempts(string monsterName)
     {
+        if (GameClient.IsTamedName(monsterName)) return 0;
+
         lock (_lock)
         {
             ReloadIfUpdated();
@@ -161,6 +177,8 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
 
     public void IncrementTameAttempts(string monsterName)
     {
+        if (GameClient.IsTamedName(monsterName)) return;
+
         bool changed = false;
         lock (_lock)
         {
