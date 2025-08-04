@@ -458,10 +458,13 @@ public sealed partial class GameClient
                 if (_trackedObjects.TryGetValue(oc.ObjectID, out var objC))
                 {
                     if (_tameTargetId.HasValue && oc.ObjectID == _tameTargetId.Value &&
-                        objC.Type == ObjectType.Monster && IsTamedName(objC.Name))
+                        objC.Type == ObjectType.Monster)
                     {
-                        MonsterMemory.SetCanTame(objC.Name);
-                        _tameTargetId = null;
+                        if (IsTamedName(objC.Name) || oc.NameColour == Color.Red)
+                        {
+                            MonsterMemory.SetCanTame(objC.Name);
+                            _tameTargetId = null;
+                        }
                     }
                     if (objC.Type == ObjectType.Monster)
                         objC.Tamed = IsTamedName(objC.Name);
