@@ -24,6 +24,7 @@ public sealed partial class GameClient
     private readonly CancellationTokenSource _cts = new();
     private CancellationTokenSource? _movementSaveCts;
     private CancellationTokenSource? _movementDeleteCts;
+    private CancellationTokenSource? _isolationCts;
     public event Action? MovementEntryRemoved;
     public event Action<double>? ExpRateSaved;
     public event Action<string>? WhisperCommandReceived;

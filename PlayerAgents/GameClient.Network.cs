@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Drawing;
 using C = ClientPackets;
 using S = ServerPackets;
@@ -1022,6 +1023,42 @@ public sealed partial class GameClient
                 Log($"KeepAlive error: {ex.Message}");
             }
         }
+    }
+
+    public void BeginIsolationKeepAlive()
+    {
+        _isolationCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _isolationCts = cts;
+        FireAndForget(Task.Run(async () =>
+        {
+            while (!cts.IsCancellationRequested && _stream != null)
+            {
+                try
+                {
+                    await SendAsync(new C.KeepAlive { Time = Environment.TickCount64 });
+                }
+                catch (Exception ex)
+                {
+                    Log($"Isolation keepalive error: {ex.Message}");
+                }
+
+                try
+                {
+                    await Task.Delay(1000, cts.Token);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+            }
+        }));
+    }
+
+    public void EndIsolationKeepAlive()
+    {
+        _isolationCts?.Cancel();
+        _isolationCts = null;
     }
 
     private async Task MaintenanceLoop()

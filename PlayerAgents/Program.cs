@@ -225,6 +225,7 @@ internal class Program
             async Task IsolateAsync(GameClient isolator)
             {
                 autoScaleEnabled = false;
+                isolator.BeginIsolationKeepAlive();
                 List<GameClient> toDrop;
                 lock (clientLock)
                     toDrop = runningClients.Where(c => c != isolator).ToList();
@@ -237,8 +238,9 @@ internal class Program
                     await c.DisconnectAsync();
                     lock (clientLock) runningClients.Remove(c);
                     logger.RemoveAgent(c.PlayerName);
-                    await Task.Delay(200);
+                    await Task.Delay(500);
                 }
+                isolator.EndIsolationKeepAlive();
             }
 
             async Task StartAgentAsync(AgentConfig agent)
