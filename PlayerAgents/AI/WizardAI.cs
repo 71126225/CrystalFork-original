@@ -117,6 +117,62 @@ public sealed class WizardAI : BaseAI
             return;
         }
 
+        if (map != null && DateTime.UtcNow >= _nextSpellTime)
+        {
+            var hellfire = Client.Magics.FirstOrDefault(m => m.Spell == Spell.HellFire);
+            if (hellfire != null)
+            {
+                int availableLevel = 0;
+                if (Client.Level >= hellfire.Level3) availableLevel = 3;
+                else if (Client.Level >= hellfire.Level2) availableLevel = 2;
+                else if (Client.Level >= hellfire.Level1) availableLevel = 1;
+
+                int castLevel = Math.Min(hellfire.Level + 1, availableLevel);
+                if (castLevel > 0)
+                {
+                    int cost = hellfire.BaseCost + hellfire.LevelCost * (castLevel - 1);
+                    if (cost <= Client.MP)
+                    {
+                        const int hellfireRange = 4;
+                        int dist = Functions.MaxDistance(current, monster.Location);
+                        if (dist <= hellfireRange && CanCast(map, current, monster.Location))
+                        {
+                            var dir = Functions.DirectionFromPoint(current, monster.Location);
+                            bool targetFound = false;
+                            bool otherFound = false;
+                            var p = current;
+                            for (int i = 1; i <= hellfireRange; i++)
+                            {
+                                p = Functions.PointMove(p, dir, 1);
+                                if (p.X < 0 || p.Y < 0 || p.X >= map.Width || p.Y >= map.Height) break;
+                                if (!map.IsWalkable(p.X, p.Y)) break;
+
+                                foreach (var obj in Client.TrackedObjects.Values)
+                                {
+                                    if (obj.Type != ObjectType.Monster || obj.Dead || obj.Hidden || obj.AI == 3) continue;
+                                    if (obj.Location != p) continue;
+                                    if (obj.Id == monster.Id) targetFound = true;
+                                    else otherFound = true;
+                                    break;
+                                }
+
+                                if (targetFound && otherFound)
+                                    break;
+                            }
+
+                            if (targetFound && otherFound)
+                            {
+                                await Client.CastMagicAsync(Spell.HellFire, dir, monster.Location, monster.Id);
+                                RecordAttackTime();
+                                _nextSpellTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         var magic = GetBestMagic();
         if (map == null || magic == null)
         {
