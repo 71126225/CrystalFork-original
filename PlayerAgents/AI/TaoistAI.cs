@@ -56,6 +56,26 @@ public sealed class TaoistAI : BaseAI
         return true;
     }
 
+    private async Task<bool> EnsureAmuletAsync(int shape)
+    {
+        if (HasAmulet(shape)) return true;
+        var inventory = Client.Inventory;
+        if (inventory == null) return false;
+        foreach (var item in inventory)
+        {
+            if (item?.Info == null || item.Info.Type != ItemType.Amulet) continue;
+            if (shape == 1)
+            {
+                if (item.Info.Shape != 1 && item.Info.Shape != 2) continue;
+            }
+            else if (item.Info.Shape != shape) continue;
+
+            await Client.EquipItemAsync(item, EquipmentSlot.Amulet);
+            return true;
+        }
+        return false;
+    }
+
     private ClientMagic? GetMagic(Spell spell) => Client.Magics.FirstOrDefault(m => m.Spell == spell);
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
@@ -75,14 +95,20 @@ public sealed class TaoistAI : BaseAI
             }
         }
 
+        if (monster.AI == 3)
+        {
+            await base.AttackMonsterAsync(monster, current);
+            return;
+        }
+
         var poison = GetMagic(Spell.Poisoning);
         var soulFire = GetMagic(Spell.SoulFireBall);
         int attackRange = soulFire?.Range > 0 ? soulFire.Range : 7;
         int dist = Functions.MaxDistance(current, monster.Location);
 
-        if (poison != null && HasAmulet(1) && DateTime.UtcNow >= _nextSpellTime)
+        if (poison != null && DateTime.UtcNow >= _nextSpellTime)
         {
-            if (!_poisonedTargets.TryGetValue(monster.Id, out var until) || DateTime.UtcNow >= until)
+            if ((!_poisonedTargets.TryGetValue(monster.Id, out var until) || DateTime.UtcNow >= until) && await EnsureAmuletAsync(1))
             {
                 if (dist <= attackRange)
                 {
@@ -95,7 +121,7 @@ public sealed class TaoistAI : BaseAI
             }
         }
 
-        if (soulFire != null && HasAmulet())
+        if (soulFire != null && await EnsureAmuletAsync(0))
         {
             bool requiresLine = CanFlySpells.List.Contains(Spell.SoulFireBall);
             bool canCast = map != null && dist <= attackRange && (!requiresLine || CanCast(map, current, monster.Location));
@@ -121,6 +147,8 @@ public sealed class TaoistAI : BaseAI
             return await base.MoveToTargetAsync(map, current, target, radius);
         if (target.Dead || target.Hidden)
             return true;
+        if (target.AI == 3)
+            return await base.MoveToTargetAsync(map, current, target, radius);
         var soulFire = GetMagic(Spell.SoulFireBall);
         if (soulFire == null || !HasAmulet())
             return await base.MoveToTargetAsync(map, current, target, radius);
@@ -176,12 +204,12 @@ public sealed class TaoistAI : BaseAI
             bool hasPoison = Client.Magics.Any(m => m.Spell == Spell.Poisoning);
 
             if (hasSoulFire)
-                list.Add(new DesiredItem(ItemType.Amulet, shape: 0, count: 50));
+                list.Add(new DesiredItem(ItemType.Amulet, shape: 0, count: 500));
 
             if (hasPoison)
             {
-                list.Add(new DesiredItem(ItemType.Amulet, shape: 1, count: 50));
-                list.Add(new DesiredItem(ItemType.Amulet, shape: 2, count: 50));
+                list.Add(new DesiredItem(ItemType.Amulet, shape: 1, count: 500));
+                list.Add(new DesiredItem(ItemType.Amulet, shape: 2, count: 500));
             }
 
             return list;
