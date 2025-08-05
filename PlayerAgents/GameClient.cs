@@ -31,6 +31,7 @@ public sealed partial class GameClient
     public event Action? PickUpFailed;
     public event Action<uint>? MonsterHidden;
     public event Action<uint>? MonsterDied;
+    public event Action? PlayerDied;
     public event Action<uint, string>? MonsterNameChanged;
     public event Action<uint, Color>? MonsterColourChanged;
     public event Action? IsolateCommandReceived;

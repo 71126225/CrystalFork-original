@@ -49,6 +49,7 @@ public class BaseAI
         Client.PickUpFailed += OnPickUpFailed;
         Client.MonsterHidden += OnMonsterHidden;
         Client.MonsterDied += OnMonsterDied;
+        Client.PlayerDied += OnPlayerDied;
         Client.NpcTravelPaused += OnNpcTravelPaused;
 
         Client.ScanInventoryForAutoStore();
@@ -132,6 +133,12 @@ public class BaseAI
             _nextTargetSwitchTime = DateTime.MinValue;
             _nextPathFindTime = DateTime.MinValue;
         }
+    }
+
+    private void OnPlayerDied()
+    {
+        _currentBestMap = null;
+        _nextBestMapCheck = DateTime.UtcNow;
     }
 
     private void OnNpcTravelPaused()

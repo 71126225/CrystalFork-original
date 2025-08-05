@@ -395,6 +395,7 @@ public sealed partial class GameClient
                 CancelMovementDeleteCheck();
                 _currentLocation = death.Location;
                 _navData?.Remove(_currentLocation);
+                PlayerDied?.Invoke();
 
                 if (_equipment != null)
                 {
