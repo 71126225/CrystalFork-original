@@ -83,10 +83,10 @@ public sealed class TaoistAI : BaseAI
         if (monster.Dead || monster.Hidden) return;
 
         var map = Client.CurrentMap;
+        int maxHP = Client.GetMaxHP();
         var heal = GetMagic(Spell.Healing);
         if (heal != null && DateTime.UtcNow >= _nextSpellTime)
         {
-            int maxHP = Client.GetMaxHP();
             if (Client.HP <= maxHP * 4 / 5)
             {
                 await Client.CastMagicAsync(Spell.Healing, MirDirection.Up, current, Client.ObjectId);
@@ -105,6 +105,7 @@ public sealed class TaoistAI : BaseAI
         var soulFire = GetMagic(Spell.SoulFireBall);
         int attackRange = soulFire?.Range > 0 ? soulFire.Range : 7;
         int dist = Functions.MaxDistance(current, monster.Location);
+        bool highDamage = Client.MonsterMemory.GetDamage(monster.Name) > maxHP / 5;
 
         if (poison != null && DateTime.UtcNow >= _nextSpellTime)
         {
@@ -121,6 +122,7 @@ public sealed class TaoistAI : BaseAI
             }
         }
 
+        bool castedSoulFire = false;
         if (soulFire != null && await EnsureAmuletAsync(0))
         {
             bool requiresLine = CanFlySpells.List.Contains(Spell.SoulFireBall);
@@ -131,11 +133,11 @@ public sealed class TaoistAI : BaseAI
                 var dir = Functions.DirectionFromPoint(current, monster.Location);
                 await Client.CastMagicAsync(Spell.SoulFireBall, dir, monster.Location, monster.Id);
                 RecordSpellTime();
-                return;
+                castedSoulFire = true;
             }
         }
 
-        if (dist <= 1)
+        if (dist <= 1 && (!highDamage || !castedSoulFire))
         {
             await base.AttackMonsterAsync(monster, current);
         }
@@ -146,7 +148,7 @@ public sealed class TaoistAI : BaseAI
         if (target.Type != ObjectType.Monster)
             return await base.MoveToTargetAsync(map, current, target, radius);
         if (target.Dead || target.Hidden)
-            return true;
+            return false;
         if (target.AI == 3)
             return await base.MoveToTargetAsync(map, current, target, radius);
         var soulFire = GetMagic(Spell.SoulFireBall);
@@ -185,9 +187,9 @@ public sealed class TaoistAI : BaseAI
             return false;
         }
 
-        if (!canCast)
+        if (dist > 1)
         {
-            var path = await FindBufferedPathAsync(map, current, target.Location, 3);
+            var path = await FindBufferedPathAsync(map, current, target.Location, 1);
             return path.Count > 0 && await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
         }
 
@@ -216,6 +218,41 @@ public sealed class TaoistAI : BaseAI
         }
     }
 
+    private Point GetSafestPoint(MapData map, Point origin, TrackedObject target, int range)
+    {
+        var obstacles = BuildObstacles(map);
+        Point best = origin;
+        int bestScore = int.MinValue;
+
+        for (int dx = -range; dx <= range; dx++)
+        {
+            for (int dy = -range; dy <= range; dy++)
+            {
+                var p = new Point(origin.X + dx, origin.Y + dy);
+                int dist = Functions.MaxDistance(p, origin);
+                if (dist < range - 1 || dist > range) continue;
+                if (!map.IsWalkable(p.X, p.Y)) continue;
+                if (obstacles.Contains(p)) continue;
+                if (!CanCast(map, p, target.Location)) continue;
+
+                int min = 6;
+                foreach (var obj in Client.TrackedObjects.Values)
+                {
+                    if (obj.Type != ObjectType.Monster || obj.Dead || obj.Tamed || obj.Id == target.Id) continue;
+                    int d = Functions.MaxDistance(p, obj.Location);
+                    if (d <= 6 && d < min) min = d;
+                }
+                int score = min - dist;
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = p;
+                }
+            }
+        }
+        return best;
+    }
+
     private Point GetRetreatPoint(MapData map, Point origin, TrackedObject target, int attackRange, int retreatRange, bool requiresLine)
     {
         var obstacles = BuildObstacles(map);
@@ -230,7 +267,7 @@ public sealed class TaoistAI : BaseAI
             if (!requiresLine || CanCast(map, p, target.Location))
                 return p;
         }
-        return origin;
+        return GetSafestPoint(map, origin, target, attackRange);
     }
 
     private HashSet<Point> BuildObstacles(MapData map)
