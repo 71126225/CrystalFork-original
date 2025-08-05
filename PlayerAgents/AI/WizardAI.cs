@@ -186,7 +186,24 @@ public sealed class WizardAI : BaseAI
         const int retreatRange = 3;
         int dist = Functions.MaxDistance(current, target.Location);
         bool requiresLine = CanFlySpells.List.Contains(magic.Spell);
-        bool canCast = dist <= attackRange && (!requiresLine || CanCast(map, current, target.Location));
+
+        if (dist > attackRange)
+        {
+            var path = await FindBufferedPathAsync(map, current, target.Location, attackRange);
+            if (path.Count > 0)
+            {
+                bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
+                if (!moved)
+                {
+                    _cachedCastSpot = null;
+                    _nextCastSpotCheck = DateTime.MinValue;
+                }
+                return moved;
+            }
+            return true;
+        }
+
+        bool canCast = !requiresLine || CanCast(map, current, target.Location);
 
         if (!canCast)
         {
@@ -194,36 +211,19 @@ public sealed class WizardAI : BaseAI
                                      : GetSafestPoint(map, current, target, attackRange);
             if (spot == current)
             {
-                if (dist > attackRange)
+                var safe = GetRetreatPoint(map, current, target, attackRange, retreatRange, requiresLine);
+                if (safe != current)
                 {
-                    var path = await FindBufferedPathAsync(map, current, target.Location, 3);
+                    var path = await FindBufferedPathAsync(map, current, safe, 0);
                     if (path.Count > 0)
                     {
-                        bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
+                        bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, safe);
                         if (!moved)
                         {
                             _cachedCastSpot = null;
                             _nextCastSpotCheck = DateTime.MinValue;
                         }
                         return moved;
-                    }
-                }
-                else
-                {
-                    var safe = GetRetreatPoint(map, current, target, attackRange, retreatRange, requiresLine);
-                    if (safe != current)
-                    {
-                        var path = await FindBufferedPathAsync(map, current, safe, 0);
-                        if (path.Count > 0)
-                        {
-                            bool moved = await MovementHelper.MoveAlongPathAsync(Client, path, safe);
-                            if (!moved)
-                            {
-                                _cachedCastSpot = null;
-                                _nextCastSpotCheck = DateTime.MinValue;
-                            }
-                            return moved;
-                        }
                     }
                 }
             }
