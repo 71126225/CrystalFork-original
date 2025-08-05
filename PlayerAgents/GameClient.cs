@@ -1186,11 +1186,32 @@ public sealed partial class GameClient
     public string? GetBestMapForLevel()
     {
         if (_playerClass == null) return null;
-        var best = _expRateMemory.GetBestMapFile(_playerClass.Value, _level);
-        if (!string.IsNullOrEmpty(best))
-            return best;
 
-        return null;
+        int avgAC = (GetStatTotal(Stat.MinAC) + GetStatTotal(Stat.MaxAC)) / 2;
+        int halfHp = GetMaxHP() / 2;
+        var monsters = _monsterMemory.GetAll();
+
+        bool MapTooDangerous(string mapFile)
+        {
+            string normalized = Path.GetFileNameWithoutExtension(mapFile);
+            var known = monsters.Where(m => m.Damage > 0 &&
+                m.SeenOnMaps.Any(s => string.Equals(s, normalized, StringComparison.OrdinalIgnoreCase)));
+            if (!known.Any()) return false;
+            return known.All(m => m.Damage - avgAC > halfHp);
+        }
+
+        var candidates = _expRateMemory.GetAll()
+            .Where(e => e.Class == _playerClass.Value && e.Level == _level && e.ExpPerHour > 0)
+            .Where(e => !MapTooDangerous(e.MapFile))
+            .OrderByDescending(e => e.ExpPerHour)
+            .Take(3)
+            .Select(e => e.MapFile)
+            .ToList();
+
+        if (candidates.Count == 0)
+            return null;
+
+        return candidates[_random.Next(candidates.Count)];
     }
 
     /// <summary>
