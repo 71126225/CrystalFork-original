@@ -2001,7 +2001,6 @@ public sealed partial class GameClient
         }).ToList();
         _lastNpcGoodsType = type;
 
-        entry.CanBuy = true;
         entry.BuyItems ??= new List<BuyItem>();
         foreach (var it in _lastNpcGoods)
         {
@@ -2229,7 +2228,7 @@ public sealed partial class GameClient
         string? repairKey = null;
         string? specialRepairKey = null;
 
-        if (hasStorage && !entry.CanStore)
+        if (hasStorage && !entry.CanStore && !entry.CheckedMerchantKeys)
         {
             entry.CanStore = true;
             changed = true;
@@ -2237,7 +2236,7 @@ public sealed partial class GameClient
 
         if (hasBuy)
         {
-            if (!entry.CanBuy)
+            if (!entry.CanBuy && !entry.CheckedMerchantKeys)
             {
                 entry.CanBuy = true;
                 changed = true;
@@ -2257,7 +2256,7 @@ public sealed partial class GameClient
 
         if (hasSell)
         {
-            if (!entry.CanSell)
+            if (!entry.CanSell && !entry.CheckedMerchantKeys)
             {
                 entry.CanSell = true;
                 changed = true;
@@ -2277,7 +2276,7 @@ public sealed partial class GameClient
 
         if (hasRepair)
         {
-            if (!entry.CanRepair)
+            if (!entry.CanRepair && !entry.CheckedMerchantKeys)
             {
                 entry.CanRepair = true;
                 changed = true;
@@ -2293,7 +2292,7 @@ public sealed partial class GameClient
 
         if (hasSpecialRepair)
         {
-            if (!entry.CanSpecialRepair)
+            if (!entry.CanSpecialRepair && !entry.CheckedMerchantKeys)
             {
                 entry.CanSpecialRepair = true;
                 changed = true;
