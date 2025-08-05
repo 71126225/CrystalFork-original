@@ -26,6 +26,13 @@ public sealed class TaoistAI : BaseAI
     protected override Stat[] DefensiveStats { get; } = new[]
         { Stat.MinMAC, Stat.MaxMAC };
 
+    protected override IEnumerable<Spell> GetAttackSpells()
+    {
+        yield return Spell.Poisoning;
+        yield return Spell.SoulFireBall;
+        yield return Spell.Healing;
+    }
+
     protected override int GetItemScore(UserItem item, EquipmentSlot slot)
     {
         if (!IsOffensiveSlot(slot))

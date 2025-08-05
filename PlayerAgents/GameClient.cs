@@ -1466,6 +1466,16 @@ public sealed partial class GameClient
         return _magics.Any(m => m.Spell == spell);
     }
 
+    public bool HasSpellsThatRequireMP()
+    {
+        foreach (var magic in _magics)
+        {
+            if (magic.BaseCost > 0 || magic.LevelCost > 0)
+                return true;
+        }
+        return false;
+    }
+
     private bool ItemMatchesPlayer(UserItem item)
     {
         if (_playerClass == null || item.Info == null) return false;

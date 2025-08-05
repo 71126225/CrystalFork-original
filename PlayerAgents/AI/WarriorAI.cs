@@ -1,4 +1,5 @@
 using Shared;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 
@@ -12,6 +13,12 @@ public sealed class WarriorAI : BaseAI
         { Stat.MinDC, Stat.MaxDC, Stat.AttackSpeed, Stat.Accuracy, Stat.Agility };
     protected override Stat[] DefensiveStats { get; } = new[]
         { Stat.MinAC, Stat.MaxAC, Stat.Accuracy, Stat.Agility };
+
+    protected override IEnumerable<Spell> GetAttackSpells()
+    {
+        if (Client.Slaying)
+            yield return Spell.Slaying;
+    }
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {

@@ -21,6 +21,12 @@ public sealed class ArcherAI : BaseAI
     protected override Stat[] DefensiveStats { get; } = new[]
         { Stat.MinMAC, Stat.MaxMAC };
 
+    protected override IEnumerable<Spell> GetAttackSpells()
+    {
+        yield return Spell.StraightShot;
+        yield return Spell.DoubleShot;
+    }
+
     private bool HasBowEquipped()
     {
         var eq = Client.Equipment;

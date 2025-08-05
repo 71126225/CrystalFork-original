@@ -33,6 +33,13 @@ public sealed class WizardAI : BaseAI
     protected override Stat[] DefensiveStats { get; } = new[]
         { Stat.MinMAC, Stat.MaxMAC };
 
+    protected override IEnumerable<Spell> GetAttackSpells()
+    {
+        foreach (var s in Globals.RangedSpells)
+            yield return s;
+        yield return Spell.HellFire;
+    }
+
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {

@@ -196,7 +196,7 @@ public class BaseAI
     {
         get
         {
-            bool needsMp = Client.Magics.Any(m => m.BaseCost > 0 || m.LevelCost > 0);
+            bool needsMp = Client.HasSpellsThatRequireMP();
             if (_baseDesiredItems == null || needsMp != _needsMpPotions)
             {
                 _needsMpPotions = needsMp;
@@ -445,6 +445,12 @@ public class BaseAI
                     Client.Log($"Used {name}");
                     _nextPotionTime = DateTime.UtcNow + TimeSpan.FromSeconds(1);
                 }
+            }
+            else
+            {
+                int minCost = GetMinAttackSpellCost();
+                if (minCost > 0 && Client.MP < minCost)
+                    TriggerInventoryRefresh();
             }
         }
     }
@@ -1810,6 +1816,36 @@ public class BaseAI
         _lastMoveOrAttackTime = DateTime.UtcNow;
         _stationarySince = _lastMoveOrAttackTime;
         _nextAttackTime = _lastMoveOrAttackTime + TimeSpan.FromMilliseconds(AttackDelay);
+    }
+
+    protected virtual IEnumerable<Spell> GetAttackSpells()
+    {
+        yield break;
+    }
+
+    private int GetMinAttackSpellCost()
+    {
+        int minCost = int.MaxValue;
+        int level = Client.Level;
+        foreach (var spell in GetAttackSpells())
+        {
+            var magic = Client.Magics.FirstOrDefault(m => m.Spell == spell);
+            if (magic == null) continue;
+
+            int availableLevel = 0;
+            if (level >= magic.Level3) availableLevel = 3;
+            else if (level >= magic.Level2) availableLevel = 2;
+            else if (level >= magic.Level1) availableLevel = 1;
+
+            int castLevel = Math.Min(magic.Level + 1, availableLevel);
+            if (castLevel == 0) continue;
+
+            int cost = magic.BaseCost + magic.LevelCost * (castLevel - 1);
+            if (cost < minCost)
+                minCost = cost;
+        }
+
+        return minCost == int.MaxValue ? 0 : minCost;
     }
 
     protected ClientMagic? GetMagic(Spell spell)
