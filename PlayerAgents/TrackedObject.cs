@@ -15,6 +15,8 @@ public sealed class TrackedObject
     public bool Hidden { get; set; }
     public bool Tamed { get; set; }
 
+    public PoisonType Poison { get; set; }
+
     // Records which player this monster is currently engaged with and when that
     // engagement started. Null if not engaged.
     public uint? EngagedWith { get; set; }
@@ -32,5 +34,6 @@ public sealed class TrackedObject
         Hidden = hidden;
         EngagedWith = null;
         LastEngagedTime = DateTime.MinValue;
+        Poison = PoisonType.None;
     }
 }

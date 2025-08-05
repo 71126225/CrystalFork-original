@@ -11,7 +11,8 @@ public sealed class TaoistAI : BaseAI
     public TaoistAI(GameClient client) : base(client) { }
 
     private DateTime _nextSpellTime = DateTime.MinValue;
-    private readonly Dictionary<uint, DateTime> _poisonedTargets = new();
+    private readonly Dictionary<uint, DateTime> _redPoisoned = new();
+    private readonly Dictionary<uint, DateTime> _greenPoisoned = new();
 
     private void RecordSpellTime()
     {
@@ -48,11 +49,7 @@ public sealed class TaoistAI : BaseAI
         var item = eq[(int)EquipmentSlot.Amulet];
         if (item?.Info == null || item.Info.Type != ItemType.Amulet) return false;
         if (shape >= 0)
-        {
-            if (shape == 1)
-                return item.Info.Shape == 1 || item.Info.Shape == 2;
             return item.Info.Shape == shape;
-        }
         return true;
     }
 
@@ -64,11 +61,7 @@ public sealed class TaoistAI : BaseAI
         foreach (var item in inventory)
         {
             if (item?.Info == null || item.Info.Type != ItemType.Amulet) continue;
-            if (shape == 1)
-            {
-                if (item.Info.Shape != 1 && item.Info.Shape != 2) continue;
-            }
-            else if (item.Info.Shape != shape) continue;
+            if (shape >= 0 && item.Info.Shape != shape) continue;
 
             await Client.EquipItemAsync(item, EquipmentSlot.Amulet);
             return true;
@@ -105,18 +98,41 @@ public sealed class TaoistAI : BaseAI
         var soulFire = GetMagic(Spell.SoulFireBall);
         int attackRange = soulFire?.Range > 0 ? soulFire.Range : 7;
         int dist = Functions.MaxDistance(current, monster.Location);
-        bool highDamage = Client.MonsterMemory.GetDamage(monster.Name) > maxHP / 5;
+        int avgAC = (Client.GetStatTotal(Stat.MinAC) + Client.GetStatTotal(Stat.MaxAC)) / 2;
+        bool highDamage = Client.MonsterMemory.GetDamage(monster.Name) - avgAC > maxHP / 5;
+        bool redPoisoned = monster.Poison.HasFlag(PoisonType.Red);
+        bool greenPoisoned = monster.Poison.HasFlag(PoisonType.Green);
+        if (redPoisoned)
+            _redPoisoned.Remove(monster.Id);
+        if (greenPoisoned)
+            _greenPoisoned.Remove(monster.Id);
 
         if (poison != null && DateTime.UtcNow >= _nextSpellTime)
         {
-            if ((!_poisonedTargets.TryGetValue(monster.Id, out var until) || DateTime.UtcNow >= until) && await EnsureAmuletAsync(1))
+            if (!redPoisoned &&
+                (!_redPoisoned.TryGetValue(monster.Id, out var redUntil) || DateTime.UtcNow >= redUntil) &&
+                await EnsureAmuletAsync(2))
             {
                 if (dist <= attackRange)
                 {
                     var dir = Functions.DirectionFromPoint(current, monster.Location);
                     await Client.CastMagicAsync(Spell.Poisoning, dir, monster.Location, monster.Id);
                     RecordSpellTime();
-                    _poisonedTargets[monster.Id] = DateTime.UtcNow + TimeSpan.FromSeconds(8);
+                    _redPoisoned[monster.Id] = DateTime.UtcNow + TimeSpan.FromSeconds(8);
+                    return;
+                }
+            }
+
+            if (!greenPoisoned &&
+                (!_greenPoisoned.TryGetValue(monster.Id, out var greenUntil) || DateTime.UtcNow >= greenUntil) &&
+                await EnsureAmuletAsync(1))
+            {
+                if (dist <= attackRange)
+                {
+                    var dir = Functions.DirectionFromPoint(current, monster.Location);
+                    await Client.CastMagicAsync(Spell.Poisoning, dir, monster.Location, monster.Id);
+                    RecordSpellTime();
+                    _greenPoisoned[monster.Id] = DateTime.UtcNow + TimeSpan.FromSeconds(8);
                     return;
                 }
             }
@@ -158,7 +174,8 @@ public sealed class TaoistAI : BaseAI
         int attackRange = soulFire.Range > 0 ? soulFire.Range : 7;
         const int retreatRange = 3;
         int dist = Functions.MaxDistance(current, target.Location);
-        bool highDamage = Client.MonsterMemory.GetDamage(target.Name) > Client.GetMaxHP() / 5;
+        int avgAC = (Client.GetStatTotal(Stat.MinAC) + Client.GetStatTotal(Stat.MaxAC)) / 2;
+        bool highDamage = Client.MonsterMemory.GetDamage(target.Name) - avgAC > Client.GetMaxHP() / 5;
         bool requiresLine = CanFlySpells.List.Contains(Spell.SoulFireBall);
         bool canCast = dist <= attackRange && (!requiresLine || CanCast(map, current, target.Location));
 

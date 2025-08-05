@@ -247,11 +247,14 @@ public sealed partial class GameClient
                 _timeOfDay = tod.Lights;
                 break;
             case S.ObjectPlayer op:
-                AddTrackedObject(new TrackedObject(op.ObjectID, ObjectType.Player, op.Name, op.Location, op.Direction));
+                var playerObj = new TrackedObject(op.ObjectID, ObjectType.Player, op.Name, op.Location, op.Direction);
+                playerObj.Poison = op.Poison;
+                AddTrackedObject(playerObj);
                 break;
             case S.ObjectMonster om:
                 var monsterObj = new TrackedObject(om.ObjectID, ObjectType.Monster, om.Name, om.Location, om.Direction, om.AI, om.Dead);
                 monsterObj.Tamed = IsTamedName(om.Name);
+                monsterObj.Poison = om.Poison;
                 AddTrackedObject(monsterObj);
                 if (!monsterObj.Tamed && !string.IsNullOrEmpty(om.Name) && !string.IsNullOrEmpty(_currentMapFile))
                     _monsterMemory.AddSeenOnMap(om.Name, _currentMapFile);
@@ -459,17 +462,21 @@ public sealed partial class GameClient
                 {
                     if (_tameTargetId.HasValue && oc.ObjectID == _tameTargetId.Value &&
                         objC.Type == ObjectType.Monster)
+                {
+                    if (IsTamedName(objC.Name) || oc.NameColour == Color.Red)
                     {
-                        if (IsTamedName(objC.Name) || oc.NameColour == Color.Red)
-                        {
-                            MonsterMemory.SetCanTame(objC.Name);
-                            _tameTargetId = null;
-                        }
+                        MonsterMemory.SetCanTame(objC.Name);
+                        _tameTargetId = null;
                     }
+                }
                     if (objC.Type == ObjectType.Monster)
                         objC.Tamed = IsTamedName(objC.Name);
                 }
                 MonsterColourChanged?.Invoke(oc.ObjectID, oc.NameColour);
+                break;
+            case S.ObjectPoisoned opoi:
+                if (_trackedObjects.TryGetValue(opoi.ObjectID, out var objP))
+                    objP.Poison = opoi.Poison;
                 break;
             case S.ObjectHarvested oh:
                 UpdateTrackedObject(oh.ObjectID, oh.Location, oh.Direction);
