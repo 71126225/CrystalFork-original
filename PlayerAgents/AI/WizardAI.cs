@@ -17,7 +17,7 @@ public sealed class WizardAI : BaseAI
         if (target.AI == 3)
             return distance > 20;
 
-        var magic = GetBestMagic();
+        var magic = GetBestMagic(Globals.RangedSpells);
         bool longRange = magic != null &&
                          magic.Range > 0 &&
                          !CanFlySpells.List.Contains(magic.Spell);
@@ -33,53 +33,6 @@ public sealed class WizardAI : BaseAI
     protected override Stat[] DefensiveStats { get; } = new[]
         { Stat.MinMAC, Stat.MaxMAC };
 
-    private ClientMagic? GetBestMagic()
-    {
-        ClientMagic? best = null;
-        int bestReq = -1;
-        int bestCastLevel = 0;
-        int mp = Client.MP;
-        int playerLevel = Client.Level;
-        foreach (var magic in Client.Magics)
-        {
-            if (Array.IndexOf(Globals.RangedSpells, magic.Spell) < 0) continue;
-
-            int availableLevel = 0;
-            if (playerLevel >= magic.Level3) availableLevel = 3;
-            else if (playerLevel >= magic.Level2) availableLevel = 2;
-            else if (playerLevel >= magic.Level1) availableLevel = 1;
-
-            int castLevel = Math.Min(magic.Level + 1, availableLevel);
-            if (castLevel == 0) continue;
-
-            int cost = magic.BaseCost + magic.LevelCost * (castLevel - 1);
-            if (cost > mp) continue;
-
-            int req = availableLevel switch
-            {
-                3 => magic.Level3,
-                2 => magic.Level2,
-                _ => magic.Level1
-            };
-
-            if (best == null)
-            {
-                best = magic;
-                bestReq = req;
-                bestCastLevel = availableLevel;
-                continue;
-            }
-
-            int bestCost = best.BaseCost + best.LevelCost * (bestCastLevel - 1);
-            if (req > bestReq || (req == bestReq && cost > bestCost))
-            {
-                best = magic;
-                bestReq = req;
-                bestCastLevel = castLevel;
-            }
-        }
-        return best;
-    }
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
@@ -91,7 +44,7 @@ public sealed class WizardAI : BaseAI
         if (electric != null)
         {
             int repulseAt = Client.MonsterMemory.GetRepulseAt(monster.Name);
-            if (repulseAt != 0 && Client.Level > repulseAt && !Client.MonsterMemory.GetCanTame(monster.Name))
+            if (repulseAt != 0 && Client.Level >= repulseAt && !Client.MonsterMemory.GetCanTame(monster.Name))
             {
                 int attempts = Client.MonsterMemory.GetTameAttempts(monster.Name);
 
@@ -174,7 +127,7 @@ public sealed class WizardAI : BaseAI
             }
         }
 
-        var magic = GetBestMagic();
+        var magic = GetBestMagic(Globals.RangedSpells);
         if (map == null || magic == null)
         {
             await base.AttackMonsterAsync(monster, current);
@@ -218,7 +171,7 @@ public sealed class WizardAI : BaseAI
         if (target.AI == 3)
             return await base.MoveToTargetAsync(map, current, target, radius);
 
-        var magic = GetBestMagic();
+        var magic = GetBestMagic(Globals.RangedSpells);
         if (magic == null)
             return await base.MoveToTargetAsync(map, current, target, radius);
 
@@ -430,47 +383,5 @@ public sealed class WizardAI : BaseAI
         return current;
     }
 
-    private static bool CanCast(MapData map, Point from, Point to)
-    {
-        Point location = from;
-        while (location != to)
-        {
-            MirDirection dir = Functions.DirectionFromPoint(location, to);
-            location = Functions.PointMove(location, dir, 1);
-            if (location.X < 0 || location.Y < 0 ||
-                location.X >= map.Width || location.Y >= map.Height)
-                return false;
-            if (!map.IsWalkable(location.X, location.Y))
-                return false;
-        }
-        return true;
-    }
-
-    private HashSet<Point> BuildObstacles(MapData map)
-    {
-        var obstacles = MovementHelper.BuildObstacles(Client);
-        var dirs = new[] { new Point(0,-1), new Point(1,0), new Point(0,1), new Point(-1,0), new Point(1,-1), new Point(1,1), new Point(-1,1), new Point(-1,-1) };
-        foreach (var obj in Client.TrackedObjects.Values)
-        {
-            if (obj.Type != ObjectType.Monster || obj.Dead) continue;
-            obstacles.Add(obj.Location);
-            foreach (var d in dirs)
-            {
-                var p = new Point(obj.Location.X + d.X, obj.Location.Y + d.Y);
-                if (map.IsWalkable(p.X, p.Y))
-                    obstacles.Add(p);
-            }
-        }
-        return obstacles;
-    }
-
-    private async Task<List<Point>> FindBufferedPathAsync(MapData map, Point start, Point dest, int radius)
-    {
-        var obstacles = BuildObstacles(map);
-        var path = await PathFinder.FindPathAsync(map, start, dest, obstacles, radius);
-        if (path.Count == 0)
-            path = await MovementHelper.FindPathAsync(Client, map, start, dest, 0, radius);
-        return path;
-    }
 }
 

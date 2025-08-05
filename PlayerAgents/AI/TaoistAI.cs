@@ -2,7 +2,6 @@ using Shared;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using System.Threading.Tasks;
 using PlayerAgents.Map;
 
@@ -68,8 +67,6 @@ public sealed class TaoistAI : BaseAI
         }
         return false;
     }
-
-    private ClientMagic? GetMagic(Spell spell) => Client.Magics.FirstOrDefault(m => m.Spell == spell);
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
@@ -287,46 +284,4 @@ public sealed class TaoistAI : BaseAI
         return GetSafestPoint(map, origin, target, attackRange);
     }
 
-    private HashSet<Point> BuildObstacles(MapData map)
-    {
-        var obstacles = MovementHelper.BuildObstacles(Client);
-        var dirs = new[] { new Point(0,-1), new Point(1,0), new Point(0,1), new Point(-1,0), new Point(1,-1), new Point(1,1), new Point(-1,1), new Point(-1,-1) };
-        foreach (var obj in Client.TrackedObjects.Values)
-        {
-            if (obj.Type != ObjectType.Monster || obj.Dead) continue;
-            obstacles.Add(obj.Location);
-            foreach (var d in dirs)
-            {
-                var pt = new Point(obj.Location.X + d.X, obj.Location.Y + d.Y);
-                if (map.IsWalkable(pt.X, pt.Y))
-                    obstacles.Add(pt);
-            }
-        }
-        return obstacles;
-    }
-
-    private static bool CanCast(MapData map, Point from, Point to)
-    {
-        Point location = from;
-        while (location != to)
-        {
-            MirDirection dir = Functions.DirectionFromPoint(location, to);
-            location = Functions.PointMove(location, dir, 1);
-            if (location.X < 0 || location.Y < 0 ||
-                location.X >= map.Width || location.Y >= map.Height)
-                return false;
-            if (!map.IsWalkable(location.X, location.Y))
-                return false;
-        }
-        return true;
-    }
-
-    private async Task<List<Point>> FindBufferedPathAsync(MapData map, Point start, Point dest, int radius)
-    {
-        var obstacles = BuildObstacles(map);
-        var path = await PathFinder.FindPathAsync(map, start, dest, obstacles, radius);
-        if (path.Count == 0)
-            path = await MovementHelper.FindPathAsync(Client, map, start, dest, 0, radius);
-        return path;
-    }
 }

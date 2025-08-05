@@ -1,7 +1,6 @@
 using Shared;
 using System.Drawing;
 using System.Threading.Tasks;
-using PlayerAgents.Map;
 
 public sealed class AssassinAI : BaseAI
 {
@@ -16,26 +15,17 @@ public sealed class AssassinAI : BaseAI
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
-        var dir = Functions.DirectionFromPoint(current, monster.Location);
         if (Client.HasMagic(Spell.DoubleSlash))
         {
             if (!Client.DoubleSlash)
                 await Client.ToggleSpellAsync(Spell.DoubleSlash, true);
 
-            if (Client.DoubleSlash)
-                await Client.AttackAsync(dir, Spell.DoubleSlash);
-            else
-                await Client.AttackAsync(dir, Spell.None);
+            var spell = Client.DoubleSlash ? Spell.DoubleSlash : Spell.None;
+            await AttackWithSpellAsync(current, monster, spell);
         }
         else
         {
-            await Client.AttackAsync(dir, Spell.None);
+            await AttackWithSpellAsync(current, monster, Spell.None);
         }
-        RecordAttackTime();
-    }
-
-    protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)
-    {
-        return await base.MoveToTargetAsync(map, current, target, radius);
     }
 }
