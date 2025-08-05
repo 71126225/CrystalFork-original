@@ -289,6 +289,9 @@ public sealed partial class GameClient
             case S.ObjectGold og:
                 AddTrackedObject(new TrackedObject(og.ObjectID, ObjectType.Item, "Gold", og.Location, MirDirection.Up));
                 break;
+            case S.ObjectSpell os:
+                AddTrackedObject(new TrackedObject(os.ObjectID, ObjectType.Spell, os.Spell.ToString(), os.Location, os.Direction, spell: os.Spell));
+                break;
             case S.ObjectTurn ot:
                 UpdateTrackedObject(ot.ObjectID, ot.Location, ot.Direction);
                 break;

@@ -172,6 +172,9 @@ internal class Program
             var monsterFile = Path.Combine(memoryDir, "monster_memory.json");
             var monsterMemory = new MonsterMemoryBank(monsterFile);
 
+            var safezoneFile = Path.Combine(memoryDir, "safezone_memory.json");
+            var safezoneMemory = new SafezoneMemoryBank(safezoneFile);
+
             var navManager = new NavDataManager();
 
             List<AgentConfig> agentConfigs;
@@ -255,7 +258,7 @@ internal class Program
                     CharacterName = agent.CharacterName
                 };
 
-                var client = new GameClient(agentCfg, npcMemory, movementMemory, expRateMemory, monsterMemory, navManager, logger);
+                var client = new GameClient(agentCfg, npcMemory, movementMemory, expRateMemory, monsterMemory, safezoneMemory, navManager, logger);
                 client.IsolateCommandReceived += () => _ = IsolateAsync(client);
                 lock (clientLock) runningClients.Add(client);
 

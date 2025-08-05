@@ -167,6 +167,7 @@ public class BaseAI
         string name = teleport.Info?.FriendlyName ?? "town teleport";
         Client.Log($"Used {name} for inventory refresh");
         await mapChange;
+        await Client.RecordSafezoneAsync();
         _nextInventoryTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(10);
         _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
     }
@@ -423,9 +424,12 @@ public class BaseAI
                 var teleport = Client.FindTownTeleport();
                 if (teleport != null)
                 {
+                    var mapChange = Client.WaitForMapChangeAsync(waitForNextMap: true);
                     await Client.UseItemAsync(teleport);
                     string name = teleport.Info?.FriendlyName ?? "town teleport";
                     Client.Log($"Used {name}");
+                    await mapChange;
+                    await Client.RecordSafezoneAsync();
                     _nextPotionTime = DateTime.UtcNow + TimeSpan.FromSeconds(1);
                     _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
                     TriggerInventoryRefresh();
@@ -1790,9 +1794,12 @@ public class BaseAI
                 var teleport = Client.FindTownTeleport();
                 if (teleport != null)
                 {
+                    var mapChange = Client.WaitForMapChangeAsync(waitForNextMap: true);
                     await Client.UseItemAsync(teleport);
                     string name = teleport.Info?.FriendlyName ?? "town teleport";
                     Client.Log($"Used {name} due to inactivity");
+                    await mapChange;
+                    await Client.RecordSafezoneAsync();
                     _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
                     _lastMoveOrAttackTime = DateTime.UtcNow;
                 }

@@ -16,13 +16,14 @@ public sealed class TrackedObject
     public bool Tamed { get; set; }
 
     public PoisonType Poison { get; set; }
+    public Spell Spell { get; }
 
     // Records which player this monster is currently engaged with and when that
     // engagement started. Null if not engaged.
     public uint? EngagedWith { get; set; }
     public DateTime LastEngagedTime { get; set; }
 
-    public TrackedObject(uint id, ObjectType type, string name, Point location, MirDirection direction, byte ai = 0, bool dead = false, bool hidden = false)
+    public TrackedObject(uint id, ObjectType type, string name, Point location, MirDirection direction, byte ai = 0, bool dead = false, bool hidden = false, Spell spell = Spell.None)
     {
         Id = id;
         Type = type;
@@ -35,5 +36,6 @@ public sealed class TrackedObject
         EngagedWith = null;
         LastEngagedTime = DateTime.MinValue;
         Poison = PoisonType.None;
+        Spell = spell;
     }
 }

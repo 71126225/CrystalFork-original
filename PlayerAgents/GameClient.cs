@@ -19,6 +19,7 @@ public sealed partial class GameClient
     private readonly MapMovementMemoryBank _movementMemory;
     private readonly MapExpRateMemoryBank _expRateMemory;
     private readonly MonsterMemoryBank _monsterMemory;
+    private readonly SafezoneMemoryBank _safezoneMemory;
     private readonly NavDataManager _navDataManager;
     private readonly IAgentLogger? _logger;
     private readonly CancellationTokenSource _cts = new();
@@ -197,6 +198,42 @@ public sealed partial class GameClient
     public void ClearPushedObjects()
     {
         _pushedObjects.Clear();
+    }
+
+    public void RecordSafezone()
+    {
+        if (string.IsNullOrEmpty(_currentMapFile)) return;
+        RecordSafezoneAt(_currentMapFile, _currentLocation);
+    }
+
+    private void RecordSafezoneAt(string mapFile, Point loc)
+    {
+        TrackedObject? nearest = null;
+        int bestDist = int.MaxValue;
+        foreach (var obj in _trackedObjects.Values)
+        {
+            if (obj.Type != ObjectType.Spell || obj.Spell != Spell.TrapHexagon) continue;
+            if (obj.Location.X <= loc.X) continue;
+            int dist = Functions.MaxDistance(loc, obj.Location);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                nearest = obj;
+            }
+        }
+        int size = nearest != null ? bestDist : 0;
+        if (size > 0)
+            _safezoneMemory.AddSafezone(mapFile, loc, size);
+    }
+
+    public async Task RecordSafezoneAsync()
+    {
+        if (string.IsNullOrEmpty(_currentMapFile)) return;
+        var map = _currentMapFile;
+        var loc = _currentLocation;
+        if (_safezoneMemory.HasSafezone(map, loc)) return;
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        RecordSafezoneAt(map, loc);
     }
 
     internal void SetTameTarget(uint id)
@@ -957,6 +994,7 @@ public sealed partial class GameClient
     public MapMovementMemoryBank MovementMemory => _movementMemory;
     public MapExpRateMemoryBank ExpRateMemory => _expRateMemory;
     public MonsterMemoryBank MonsterMemory => _monsterMemory;
+    public SafezoneMemoryBank SafezoneMemory => _safezoneMemory;
     public Func<UserItem, EquipmentSlot, int>? ItemScoreFunc { get; set; }
     public Func<IReadOnlyList<DesiredItem>>? DesiredItemsProvider { get; set; }
     public CancellationToken CancellationToken => _cts.Token;
@@ -994,13 +1032,14 @@ public sealed partial class GameClient
         _lastStorageAction = action;
     }
 
-    public GameClient(Config config, NpcMemoryBank npcMemory, MapMovementMemoryBank movementMemory, MapExpRateMemoryBank expRateMemory, MonsterMemoryBank monsterMemory, NavDataManager navDataManager, IAgentLogger? logger = null)
+    public GameClient(Config config, NpcMemoryBank npcMemory, MapMovementMemoryBank movementMemory, MapExpRateMemoryBank expRateMemory, MonsterMemoryBank monsterMemory, SafezoneMemoryBank safezoneMemory, NavDataManager navDataManager, IAgentLogger? logger = null)
     {
         _config = config;
         _npcMemory = npcMemory;
         _movementMemory = movementMemory;
         _expRateMemory = expRateMemory;
         _monsterMemory = monsterMemory;
+        _safezoneMemory = safezoneMemory;
         _navDataManager = navDataManager;
         _logger = logger;
     }
