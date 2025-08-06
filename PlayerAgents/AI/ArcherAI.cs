@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
+using System.Linq;
 using PlayerAgents.Map;
 
 public sealed class ArcherAI : BaseAI
@@ -25,6 +26,7 @@ public sealed class ArcherAI : BaseAI
     {
         yield return Spell.StraightShot;
         yield return Spell.DoubleShot;
+        yield return Spell.ExplosiveTrap;
     }
 
     private bool HasBowEquipped()
@@ -49,10 +51,33 @@ public sealed class ArcherAI : BaseAI
             await base.AttackMonsterAsync(monster, current);
             return;
         }
+        var map = Client.CurrentMap;
+
+        var trapMagic = GetMagic(Spell.ExplosiveTrap);
+        if (trapMagic != null && map != null && DateTime.UtcNow >= _nextRangeAttackTime)
+        {
+            int maxTraps = trapMagic.Level + 1;
+            int trapCount = Client.TrackedObjects.Values.Count(o => o.Type == ObjectType.Spell && o.Spell == Spell.ExplosiveTrap);
+            if (trapCount < maxTraps)
+            {
+                int trapDist = Functions.MaxDistance(current, monster.Location);
+                if (trapDist <= 3)
+                {
+                    var dir = Functions.DirectionFromPoint(current, monster.Location);
+                    var front = Functions.PointMove(current, dir, 1);
+                    if (map.IsWalkable(front.X, front.Y))
+                    {
+                        await Client.CastMagicAsync(Spell.ExplosiveTrap, dir, front, monster.Id);
+                        RecordAttackTime();
+                        _nextRangeAttackTime = DateTime.UtcNow + TimeSpan.FromMilliseconds(AttackDelay);
+                        return;
+                    }
+                }
+            }
+        }
 
         var magic = GetBestMagic(Spell.StraightShot, Spell.DoubleShot);
         int attackRange = magic != null && magic.Range > 0 ? magic.Range : 7;
-        var map = Client.CurrentMap;
         if (map != null &&
             Functions.MaxDistance(current, monster.Location) <= attackRange &&
             CanShoot(map, current, monster.Location) &&
