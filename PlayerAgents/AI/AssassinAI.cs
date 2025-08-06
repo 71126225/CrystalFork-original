@@ -22,6 +22,13 @@ public sealed class AssassinAI : BaseAI
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
+        if (Client.HasMagic(Spell.Haste) && !Client.HasBuff(BuffType.Haste))
+        {
+            await Client.CastMagicAsync(Spell.Haste, MirDirection.Up, current, Client.ObjectId);
+            RecordAttackTime();
+            return;
+        }
+
         if (Client.HasMagic(Spell.DoubleSlash))
         {
             if (!Client.DoubleSlash)

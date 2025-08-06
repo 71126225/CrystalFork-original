@@ -1001,6 +1001,14 @@ public sealed partial class GameClient
                         _thrusting = st.CanUse;
                 }
                 break;
+            case S.AddBuff ab:
+                if (ab.Buff.ObjectID == _objectId)
+                    _buffs[ab.Buff.Type] = ab.Buff.Stats;
+                break;
+            case S.RemoveBuff rb:
+                if (rb.ObjectID == _objectId)
+                    _buffs.Remove(rb.Type);
+                break;
             case S.KeepAlive keep:
                 _pingTime = Environment.TickCount64 - keep.Time;
                 break;

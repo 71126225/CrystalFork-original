@@ -85,6 +85,7 @@ public sealed partial class GameClient
     private UserItem? _lastPickedItem;
     private uint _gold;
     private readonly List<ClientMagic> _magics = new();
+    private readonly Dictionary<BuffType, Stats> _buffs = new();
 
     private int _maxBagWeight;
     private int _maxWearWeight;
@@ -1507,6 +1508,14 @@ public sealed partial class GameClient
             }
         }
 
+        if (_buffs.Count > 0)
+        {
+            foreach (var stats in _buffs.Values)
+            {
+                total += stats[stat];
+            }
+        }
+
         return total;
     }
 
@@ -1527,6 +1536,11 @@ public sealed partial class GameClient
     public bool HasMagic(Spell spell)
     {
         return _magics.Any(m => m.Spell == spell);
+    }
+
+    public bool HasBuff(BuffType type)
+    {
+        return _buffs.ContainsKey(type);
     }
 
     public bool HasSpellsThatRequireMP()
