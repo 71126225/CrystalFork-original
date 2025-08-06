@@ -260,13 +260,19 @@ public sealed partial class GameClient
     public async Task SellItemsToNpcAsync(uint npcId, IReadOnlyList<(UserItem item, ushort count)> items)
     {
         var entry = await ResolveNpcEntryAsync(npcId);
-        if (entry == null) return;
+        if (entry == null)
+        {
+            UpdateLastStorageAction($"Unknown NPC id {npcId}");
+            return;
+        }
         BeginTransaction(npcId, entry);
+        UpdateLastStorageAction($"Opening sell page at {entry.Name}");
         var interaction = _npcInteraction!;
         var page = await WithNpcDialogTimeoutAsync(ct => interaction.BeginAsync(ct), "opening sell page");
         if (page == null)
         {
             EndTransaction();
+            UpdateLastStorageAction($"Timeout opening sell page at {entry.Name}");
             return;
         }
         string[] sellKeys = { "@BUYSELLNEW", "@BUYSELL", "@SELL" };
@@ -274,6 +280,7 @@ public sealed partial class GameClient
         if (sellKey == null || sellKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
         {
             Log($"Ending selling transaction early");
+            UpdateLastStorageAction($"No sell option on {entry.Name}");
             EndTransaction();
             return;
         }
@@ -283,9 +290,11 @@ public sealed partial class GameClient
             {
                 Log($"Accessing sell page...");
                 await interaction.SelectFromMainAsync(sellKey, cts.Token);
+                UpdateLastStorageAction($"Accessing sell page at {entry.Name}");
             }
             catch (OperationCanceledException)
             {
+                UpdateLastStorageAction($"Timeout accessing sell page at {entry.Name}");
             }
         }
         foreach (var (item, count) in items)
@@ -294,6 +303,7 @@ public sealed partial class GameClient
             if (item.Info.Bind.HasFlag(BindMode.DontSell))
             {
                 Log($"Skipping {item.Info.Name} due to binding restrictions");
+                UpdateLastStorageAction($"Cannot sell {item.Info.Name}; binding restriction");
                 continue;
             }
             Log($"Processing {item.Info.Name}...");
@@ -301,14 +311,17 @@ public sealed partial class GameClient
             using var cts = new System.Threading.CancellationTokenSource(2000);
             var waitTask = WaitForSellItemAsync(item.UniqueID, cts.Token);
             Log($"Selling {item.Info.Name} (x{count})...");
+            UpdateLastStorageAction($"Selling {item.Info.Name} (x{count})");
             await SellItemAsync(item.UniqueID, count);
             try
             {
                 await waitTask;
+                UpdateLastStorageAction($"Sold {item.Info.Name} (x{count})");
             }
             catch (OperationCanceledException)
             {
                 _pendingSellChecks.Remove(item.UniqueID);
+                UpdateLastStorageAction($"Timeout selling {item.Info.Name}");
             }
             await Task.Delay(200);
         }
@@ -323,6 +336,7 @@ public sealed partial class GameClient
         {
         }
         EndTransaction();
+        UpdateLastStorageAction($"Finished selling at {entry.Name}");
     }
 
     public async Task<bool> RepairItemsAtNpcAsync(uint npcId)
@@ -382,15 +396,18 @@ public sealed partial class GameClient
         if (entry == null)
         {
             LogError($"Unknown NPC id {npcId} while opening storage");
+            UpdateLastStorageAction($"Unknown NPC id {npcId}");
             return false;
         }
         BeginTransaction(npcId, entry);
+        UpdateLastStorageAction($"Opening buy page at {entry.Name}");
 
         var interaction = _npcInteraction!;
         var page = await WithNpcDialogTimeoutAsync(ct => interaction.BeginAsync(ct), "opening buy page");
         if (page == null)
         {
             EndTransaction();
+            UpdateLastStorageAction($"Timeout opening buy page at {entry.Name}");
             return false;
         }
         string[] buyKeys = { "@BUYSELLNEW", "@BUYSELL", "@BUYNEW", "@PEARLBUY", "@BUY" };
@@ -398,6 +415,7 @@ public sealed partial class GameClient
         if (buyKey.Equals("@BUYBACK", StringComparison.OrdinalIgnoreCase))
         {
             EndTransaction();
+            UpdateLastStorageAction($"No buy option on {entry.Name}");
             return false;
         }
 
@@ -408,9 +426,11 @@ public sealed partial class GameClient
             try
             {
                 await waitTask;
+                UpdateLastStorageAction($"Accessing buy page at {entry.Name}");
             }
             catch (OperationCanceledException)
             {
+                UpdateLastStorageAction($"Timeout accessing buy page at {entry.Name}");
             }
         }
 
@@ -427,6 +447,7 @@ public sealed partial class GameClient
         {
         }
         EndTransaction();
+        UpdateLastStorageAction($"Finished buying at {entry.Name}");
         return cantAfford;
     }
 

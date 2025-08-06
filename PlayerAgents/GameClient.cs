@@ -1008,8 +1008,16 @@ public sealed partial class GameClient
                     ushort qty = (ushort)Math.Min(buyCount, item.Info.StackSize);
 
                     if (_dialogNpcId.HasValue && _npcEntries.TryGetValue(_dialogNpcId.Value, out var npc))
+                    {
                         Log($"I am buying {qty}x {item.Info.FriendlyName} from {npc.Name} for {item.Info.Price} gold each");
+                        UpdateLastStorageAction($"Buying {qty}x {item.Info.FriendlyName} from {npc.Name}");
+                    }
+                    else
+                    {
+                        UpdateLastStorageAction($"Buying {qty}x {item.Info.FriendlyName}");
+                    }
                     await BuyItemAsync(item.UniqueID, qty, type);
+                    UpdateLastStorageAction($"Bought {qty}x {item.Info.FriendlyName}");
                     await Task.Delay(50);
                     if (_lastPickedItem != null && _lastPickedItem.Info != null &&
                         _lastPickedItem.Info.Index == item.Info.Index && CanBeEquipped(_lastPickedItem.Info))
@@ -1037,6 +1045,7 @@ public sealed partial class GameClient
             else if (need)
             {
                 cantAfford = true;
+                UpdateLastStorageAction($"Cannot afford {item.Info.FriendlyName}");
             }
         }
         return cantAfford;
@@ -1848,15 +1857,18 @@ public sealed partial class GameClient
             seen.Add(item.Info.Type);
             _pendingSellChecks[item.UniqueID] = (entry, item.Info.Type);
             Log($"I am selling {item.Info.FriendlyName} to {entry.Name}");
+            UpdateLastStorageAction($"Selling {item.Info.FriendlyName} to {entry.Name}");
             using var cts = new CancellationTokenSource(2000);
             var waitTask = WaitForSellItemAsync(item.UniqueID, cts.Token);
             await SendAsync(new C.SellItem { UniqueID = item.UniqueID, Count = 1 });
             try
             {
                 await waitTask;
+                UpdateLastStorageAction($"Sold {item.Info.FriendlyName} to {entry.Name}");
             }
             catch (OperationCanceledException)
             {
+                UpdateLastStorageAction($"Timeout selling {item.Info.FriendlyName} to {entry.Name}");
             }
             await Task.Delay(200);
         }
