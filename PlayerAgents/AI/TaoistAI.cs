@@ -13,6 +13,9 @@ public sealed class TaoistAI : BaseAI
     private readonly Dictionary<uint, DateTime> _redPoisoned = new();
     private readonly Dictionary<uint, DateTime> _greenPoisoned = new();
 
+    private uint? _skeletonId;
+    private const string SkeletonName = "BoneFamiliar";
+
     private void RecordSpellTime()
     {
         RecordAttackTime();
@@ -28,6 +31,7 @@ public sealed class TaoistAI : BaseAI
 
     protected override IEnumerable<Spell> GetAttackSpells()
     {
+        yield return Spell.SummonSkeleton;
         yield return Spell.Poisoning;
         yield return Spell.SoulFireBall;
         yield return Spell.Healing;
@@ -75,9 +79,51 @@ public sealed class TaoistAI : BaseAI
         return false;
     }
 
+    private TrackedObject? GetSkeleton()
+    {
+        if (_skeletonId.HasValue && Client.TrackedObjects.TryGetValue(_skeletonId.Value, out var obj))
+        {
+            if (!obj.Dead && !obj.Hidden && obj.Tamed &&
+                obj.Name.StartsWith(SkeletonName, StringComparison.OrdinalIgnoreCase) &&
+                obj.Name.EndsWith($"({Client.PlayerName})", StringComparison.OrdinalIgnoreCase))
+                return obj;
+
+            _skeletonId = null;
+        }
+
+        foreach (var o in Client.TrackedObjects.Values)
+        {
+            if (o.Type != ObjectType.Monster || !o.Tamed || o.Dead || o.Hidden) continue;
+            if (!o.Name.StartsWith(SkeletonName, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!o.Name.EndsWith($"({Client.PlayerName})", StringComparison.OrdinalIgnoreCase)) continue;
+
+            _skeletonId = o.Id;
+            return o;
+        }
+
+        return null;
+    }
+
+    private async Task EnsureSkeletonAsync(Point current)
+    {
+        var magic = GetMagic(Spell.SummonSkeleton);
+        if (magic == null) return;
+
+        var skeleton = GetSkeleton();
+        if (skeleton != null && Functions.MaxDistance(current, skeleton.Location) <= 10) return;
+
+        if (DateTime.UtcNow < _nextSpellTime) return;
+        if (!await EnsureAmuletAsync(0)) return;
+
+        await Client.CastMagicAsync(Spell.SummonSkeleton, MirDirection.Up, current, 0);
+        RecordSpellTime();
+    }
+
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
         if (monster.Dead || monster.Hidden) return;
+
+        await EnsureSkeletonAsync(current);
 
         var map = Client.CurrentMap;
         int maxHP = Client.GetMaxHP();
@@ -171,6 +217,7 @@ public sealed class TaoistAI : BaseAI
             return false;
         if (target.AI == 3)
             return await base.MoveToTargetAsync(map, current, target, radius);
+        await EnsureSkeletonAsync(current);
         var soulFire = GetMagic(Spell.SoulFireBall);
         if (soulFire == null || !HasAmulet())
             return await base.MoveToTargetAsync(map, current, target, radius);
@@ -225,15 +272,16 @@ public sealed class TaoistAI : BaseAI
 
             bool hasSoulFire = Client.Magics.Any(m => m.Spell == Spell.SoulFireBall);
             bool hasPoison = Client.Magics.Any(m => m.Spell == Spell.Poisoning);
+            bool hasSkeleton = Client.Magics.Any(m => m.Spell == Spell.SummonSkeleton);
 
             if (hasSoulFire)
                 list.Add(new DesiredItem(ItemType.Amulet, shape: 0, count: 500));
 
-            if (hasPoison)
-            {
+            if (hasPoison || hasSkeleton)
                 list.Add(new DesiredItem(ItemType.Amulet, shape: 1, count: 500));
+
+            if (hasPoison)
                 list.Add(new DesiredItem(ItemType.Amulet, shape: 2, count: 500));
-            }
 
             return list;
         }
