@@ -103,15 +103,16 @@ public static class MovementHelper
 
         var current = client.CurrentLocation;
 
-        if (path.Count > 2)
+        int runSteps = client.RidingMount ? 3 : 2;
+        if (path.Count > runSteps)
         {
             var next = path[1];
             var dir = Functions.DirectionFromPoint(current, next);
-            if (Functions.PointMove(current, dir, 2) == path[2] && client.CanRun(dir))
+            if (Functions.PointMove(current, dir, runSteps) == path[runSteps] && client.CanRun(dir))
             {
                 client.Log($"Run step towards {next.X},{next.Y}");
                 await client.RunAsync(dir);
-                path.RemoveRange(0, 2);
+                path.RemoveRange(0, runSteps);
                 return true;
             }
         }

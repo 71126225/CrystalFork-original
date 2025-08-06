@@ -264,15 +264,15 @@ internal class Program
 
                 _ = Task.Run(async () =>
                 {
-                    try
-                    {
+                    //try
+                    //{
                         await RunAgentAsync(client, semaphore);
-                    }
-                    finally
-                    {
-                        lock (clientLock) runningClients.Remove(client);
-                        logger.RemoveAgent(client.PlayerName);
-                    }
+                    //}
+                    //finally
+                    //{
+                    //    lock (clientLock) runningClients.Remove(client);
+                    //    logger.RemoveAgent(client.PlayerName);
+                    //}
                 });
             }
 
@@ -387,5 +387,7 @@ internal class Program
 
         client.UpdateAction("running AI");
         await ai.RunAsync();
+        var name = client.PlayerName;
+        client.UpdateAction("AI stopped");
     }
 }

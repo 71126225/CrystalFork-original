@@ -337,6 +337,24 @@ public class BaseAI
         return bestItem;
     }
 
+    private UserItem? GetBestMountItemForSlot(MountSlot slot, IEnumerable<UserItem?> inventory, UserItem? current)
+    {
+        int bestScore = current != null ? GetItemScore(current, EquipmentSlot.Mount) : -1;
+        UserItem? bestItem = current;
+        foreach (var item in inventory)
+        {
+            if (item == null) continue;
+            if (!Client.CanEquipMountItem(item, slot)) continue;
+            int score = GetItemScore(item, EquipmentSlot.Mount);
+            if (bestItem == null || score > bestScore)
+            {
+                bestItem = item;
+                bestScore = score;
+            }
+        }
+        return bestItem;
+    }
+
     private async Task CheckEquipmentAsync()
     {
         var inventory = Client.Inventory;
@@ -360,6 +378,25 @@ public class BaseAI
                 if (idx >= 0) available[idx] = null; // prevent using same item twice
                 if (bestItem.Info != null)
                     Client.Log($"I have equipped {bestItem.Info.FriendlyName}");
+            }
+        }
+
+        var mount = equipment.Count > (int)EquipmentSlot.Mount ? equipment[(int)EquipmentSlot.Mount] : null;
+        if (mount != null)
+        {
+            for (int slot = 0; slot < mount.Slots.Length; slot++)
+            {
+                var mountSlot = (MountSlot)slot;
+                UserItem? current = mount.Slots[slot];
+                UserItem? bestItem = GetBestMountItemForSlot(mountSlot, available, current);
+                if (bestItem != null && bestItem != current)
+                {
+                    await Client.EquipMountItemAsync(bestItem, mountSlot);
+                    int idx = available.IndexOf(bestItem);
+                    if (idx >= 0) available[idx] = null;
+                    if (bestItem.Info != null)
+                        Client.Log($"I have equipped {bestItem.Info.FriendlyName}");
+                }
             }
         }
 
@@ -702,10 +739,10 @@ public class BaseAI
         return false;
     }
 
-    private Task<bool> TravelToMapAsync(string destMapFile)
+    private async Task<bool> TravelToMapAsync(string destMapFile)
     {
         if (DateTime.UtcNow < _travelPauseUntil)
-            return Task.FromResult(false);
+            return false;
 
         Client.Log($"Finding travel path to {Path.GetFileNameWithoutExtension(destMapFile)}");
         var path = MovementHelper.FindTravelPath(Client, destMapFile);
@@ -718,7 +755,8 @@ public class BaseAI
             _travelDestinationMap = null;
             _travelPauseUntil = DateTime.UtcNow + TimeSpan.FromSeconds(10);
             _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-            return Task.FromResult(false);
+            Client.Travelling = false;
+            return false;
         }
 
         if (path.Count == 0)
@@ -727,14 +765,17 @@ public class BaseAI
             _searchDestination = null;
             _lastRoamDirection = null;
             _travelDestinationMap = null;
-            return Task.FromResult(true);
+            Client.Travelling = false;
+            return true;
         }
 
         _travelPath = path;
         _travelIndex = 0;
         _travelDestinationMap = Path.GetFileNameWithoutExtension(destMapFile);
+        Client.Travelling = true;
+        await Client.EnsureMountedAsync();
         UpdateTravelDestination();
-        return Task.FromResult(true);
+        return true;
     }
 
     private void UpdateTravelDestination()
@@ -746,6 +787,7 @@ public class BaseAI
             _searchDestination = null;
             _lastRoamDirection = null;
             _travelDestinationMap = null;
+            Client.Travelling = false;
             Client.UpdateAction("roaming...");
             return;
         }
@@ -762,6 +804,7 @@ public class BaseAI
                 _searchDestination = null;
                 _lastRoamDirection = null;
                 _travelDestinationMap = null;
+                Client.Travelling = false;
                 Client.UpdateAction("roaming...");
                 return;
             }
@@ -773,6 +816,7 @@ public class BaseAI
             _searchDestination = null;
             _lastRoamDirection = null;
             _travelDestinationMap = null;
+            Client.Travelling = false;
             Client.UpdateAction("roaming...");
             return;
         }
@@ -819,6 +863,7 @@ public class BaseAI
                 }
                 // force path recalculation if destination changes or interval lapses
                 _travelPath = null;
+                Client.Travelling = false;
                 _travelDestinationMap = null;
             }
         }
@@ -886,6 +931,23 @@ public class BaseAI
                     keep[bestItem] = bestItem.Count;
                     int idx = available.IndexOf(bestItem);
                     if (idx >= 0) available[idx] = null; // don't reuse same item
+                }
+            }
+
+            var mount = equipment.Count > (int)EquipmentSlot.Mount ? equipment[(int)EquipmentSlot.Mount] : null;
+            if (mount != null)
+            {
+                for (int slot = 0; slot < mount.Slots.Length; slot++)
+                {
+                    var mountSlot = (MountSlot)slot;
+                    UserItem? current = mount.Slots[slot];
+                    UserItem? bestItem = GetBestMountItemForSlot(mountSlot, available, current);
+                    if (bestItem != null && bestItem != current)
+                    {
+                        keep[bestItem] = bestItem.Count;
+                        int idx = available.IndexOf(bestItem);
+                        if (idx >= 0) available[idx] = null;
+                    }
                 }
             }
         }
@@ -1682,7 +1744,7 @@ public class BaseAI
                             _lastRoamDirection = null;
                             _nextPathFindTime = DateTime.UtcNow + FailedPathFindDelay;
                         }
-                        else if (_currentRoamPath.Count <= 1)
+                        else if (_currentRoamPath?.Count <= 1)
                         {
                             _currentRoamPath = null;
                             _nextPathFindTime = DateTime.UtcNow + FailedPathFindDelay;
@@ -1707,6 +1769,7 @@ public class BaseAI
                                 _travelDestinationMap = null;
                                 _travelPauseUntil = DateTime.UtcNow + TimeSpan.FromSeconds(10);
                                 _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+                                Client.Travelling = false;
                                 traveling = false;
                             }
                         }
@@ -1796,6 +1859,7 @@ public class BaseAI
                 _lostTargetLocation = null;
                 _lostTargetPath = null;
                 _travelPath = null;
+                Client.Travelling = false;
                 _travelDestinationMap = null;
                 _nextPathFindTime = DateTime.MinValue;
                 Client.Log("Roaming reset due to inactivity");

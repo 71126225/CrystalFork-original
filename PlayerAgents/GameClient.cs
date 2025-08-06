@@ -68,6 +68,8 @@ public sealed partial class GameClient
     public NavData? NavData => _navData;
     public Point? PendingMoveTarget => _pendingMoveTarget;
     public List<Point>? CurrentPathPoints { get; internal set; }
+    public bool RidingMount => _ridingMount;
+    public bool Travelling { get; internal set; }
 
     private LightSetting _timeOfDay = LightSetting.Normal;
     private LightSetting _mapLight = LightSetting.Normal;
@@ -109,6 +111,7 @@ public sealed partial class GameClient
 
     private DateTime _lastMoveTime = DateTime.MinValue;
     private bool _canRun;
+    private bool _ridingMount;
 
     private DateTime _lastMapChangeTime = DateTime.MinValue;
 
@@ -404,6 +407,23 @@ public sealed partial class GameClient
             int score = GetItemScore(item, slot);
             if (score > best) best = score;
         }
+
+        if (_equipment != null)
+        {
+            var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+            if (mount != null)
+            {
+                for (int s = 0; s < mount.Slots.Length; s++)
+                {
+                    var mountSlot = (MountSlot)s;
+                    if (!IsItemForMountSlot(item.Info, mountSlot)) continue;
+                    if (!CanEquipMountItem(item, mountSlot)) continue;
+                    int score = GetItemScore(item, EquipmentSlot.Mount);
+                    if (score > best) best = score;
+                }
+            }
+        }
+
         return best;
     }
 
@@ -504,6 +524,29 @@ public sealed partial class GameClient
                     break;
                 }
             }
+
+            if (!need)
+            {
+                var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+                if (mount != null)
+                {
+                    for (int slot = 0; slot < mount.Slots.Length; slot++)
+                    {
+                        var mountSlot = (MountSlot)slot;
+                        if (!IsItemForMountSlot(info, mountSlot)) continue;
+                        if (!CanEquipMountItem(item, mountSlot)) continue;
+
+                        var current = mount.Slots[slot];
+                        int newScore = GetItemScore(item, EquipmentSlot.Mount);
+                        int currentScore = current != null ? GetItemScore(current, EquipmentSlot.Mount) : -1;
+                        if (newScore > currentScore)
+                        {
+                            need = true;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         if (!need)
@@ -540,13 +583,27 @@ public sealed partial class GameClient
         return false;
     }
 
-    private static bool CanBeEquipped(ItemInfo info)
+    private bool CanBeEquipped(ItemInfo info)
     {
         foreach (EquipmentSlot slot in Enum.GetValues(typeof(EquipmentSlot)))
         {
             if (IsItemForSlot(info, slot))
                 return true;
         }
+
+        if (_equipment != null)
+        {
+            var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+            if (mount != null)
+            {
+                foreach (MountSlot slot in Enum.GetValues(typeof(MountSlot)))
+                {
+                    if (IsItemForMountSlot(info, slot))
+                        return true;
+                }
+            }
+        }
+
         return false;
     }
 
@@ -579,6 +636,23 @@ public sealed partial class GameClient
             }
         }
 
+        var mountItem = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+        if (mountItem != null)
+        {
+            for (int i = 0; i < mountItem.Slots.Length; i++)
+            {
+                var mountSlot = (MountSlot)i;
+                if (!IsItemForMountSlot(info, mountSlot)) continue;
+                if (!CanEquipMountItem(candidate, mountSlot)) continue;
+
+                var current = mountItem.Slots[i];
+                int newScore = GetItemScore(candidate, EquipmentSlot.Mount);
+                int currentScore = current != null ? GetItemScore(current, EquipmentSlot.Mount) : -1;
+                if (newScore > currentScore)
+                    return 1;
+            }
+        }
+
         return count;
     }
 
@@ -589,6 +663,8 @@ public sealed partial class GameClient
         var best = new Dictionary<ItemType, (ItemInfo info, NpcEntry npc, int improvement, int distance)>();
 
         if (_equipment == null) return Array.Empty<EquipmentUpgradeInfo>();
+
+        var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
 
         // consider all known NPC entries from the shared memory bank
         foreach (var entry in _npcMemory.GetAll())
@@ -620,6 +696,26 @@ public sealed partial class GameClient
                     {
                         upgrade = true;
                         if (diff > bestDiff) bestDiff = diff;
+                    }
+                }
+
+                if (!upgrade && mount != null)
+                {
+                    for (int s = 0; s < mount.Slots.Length; s++)
+                    {
+                        var mountSlot = (MountSlot)s;
+                        if (!IsItemForMountSlot(info, mountSlot)) continue;
+                        if (!CanEquipMountItem(item, mountSlot)) continue;
+
+                        var current = mount.Slots[s];
+                        int newScore = GetItemScore(item, EquipmentSlot.Mount);
+                        int currentScore = current != null ? GetItemScore(current, EquipmentSlot.Mount) : -1;
+                        int diff = newScore - currentScore;
+                        if (diff > 0)
+                        {
+                            upgrade = true;
+                            if (diff > bestDiff) bestDiff = diff;
+                        }
                     }
                 }
 
@@ -2452,145 +2548,155 @@ public sealed partial class GameClient
 
     public async Task<bool> MoveWithinRangeAsync(Point target, uint ignoreId, int range, NpcInteractionType interactionType, int delay, string? targetMap = null)
     {
-        Log($"MoveWithinRange to {target.X},{target.Y} range {range}");
-        async Task<bool> MoveWithinMapAsync(Point dest, int destRange)
+        Travelling = true;
+        try
         {
-            var localMap = CurrentMap;
-            if (localMap == null) return false;
-
-            if (range == 0 && (!localMap.IsWalkable(dest.X, dest.Y) || _blockingCells.ContainsKey(dest)))
+            Log($"MoveWithinRange to {target.X},{target.Y} range {range}");
+            async Task<bool> MoveWithinMapAsync(Point dest, int destRange)
             {
-                NpcTravelPaused?.Invoke();
-                return false;
+                var localMap = CurrentMap;
+                if (localMap == null) return false;
+
+                if (range == 0 && (!localMap.IsWalkable(dest.X, dest.Y) || _blockingCells.ContainsKey(dest)))
+                {
+                    NpcTravelPaused?.Invoke();
+                    return false;
+                }
+
+                if (await ReviveIfDeadAsync())
+                    return false;
+
+                string startMap = _currentMapFile;
+
+                Point lastLoc = CurrentLocation;
+                DateTime stuckSince = DateTime.MinValue;
+                bool needsNewPath = true;
+                List<Point> p = new List<Point>();
+
+                while (!Disconnected && Functions.MaxDistance(CurrentLocation, dest) > destRange)
+                {
+                    if (await ReviveIfDeadAsync())
+                        return false;
+                    if (needsNewPath)
+                    {
+                        needsNewPath = false;
+                        p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
+                        Log($"Computed path with {p.Count} nodes");
+                        if (p.Count == 0)
+                            return false;
+                    }
+
+                    await MovementHelper.MoveAlongPathAsync(this, p, dest);
+                    await Task.Delay(delay);
+
+                    if (!string.Equals(_currentMapFile, startMap, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    localMap = CurrentMap;
+                    if (localMap == null)
+                        return false;
+
+                    if (CurrentLocation == lastLoc)
+                    {
+                        needsNewPath = true;
+                        if (stuckSince == DateTime.MinValue)
+                            stuckSince = DateTime.UtcNow;
+                        else if (DateTime.UtcNow - stuckSince > TimeSpan.FromSeconds(5))
+                        {
+                            var dir = (MirDirection)_random.Next(8);
+                            Log("Stuck while moving, turning to free movement");
+                            await TurnAsync(dir);
+                            stuckSince = DateTime.UtcNow;
+                        }
+                    }
+                    else
+                    {
+                        stuckSince = DateTime.MinValue;
+                    }
+
+                    lastLoc = CurrentLocation;
+                }
+
+                return Functions.MaxDistance(CurrentLocation, dest) <= destRange;
             }
+
+            var map = CurrentMap;
+            if (map == null) return false;
 
             if (await ReviveIfDeadAsync())
                 return false;
 
-            string startMap = _currentMapFile;
-            
-            Point lastLoc = CurrentLocation;
-            DateTime stuckSince = DateTime.MinValue;
-            bool needsNewPath = true;
-            List<Point> p = new List<Point>();
+            string destMap = targetMap ?? Path.GetFileNameWithoutExtension(_currentMapFile);
 
-            while (!Disconnected && Functions.MaxDistance(CurrentLocation, dest) > destRange)
+            if (string.Equals(Path.GetFileNameWithoutExtension(_currentMapFile), destMap, StringComparison.OrdinalIgnoreCase) &&
+                Functions.MaxDistance(CurrentLocation, target) <= range)
+            {
+                return true;
+            }
+
+            await EnsureMountedAsync();
+
+            CurrentNpcInteraction = interactionType;
+            if (!string.Equals(Path.GetFileNameWithoutExtension(_currentMapFile), destMap, StringComparison.OrdinalIgnoreCase))
             {
                 if (await ReviveIfDeadAsync())
                     return false;
-                if (needsNewPath)
+                var destPath = Path.Combine(MapManager.MapDirectory, destMap + ".map");
+                var travel = MovementHelper.FindTravelPath(this, destPath);
+                if (travel != null)
+                    Log($"Travel path length {travel.Count}");
+                if (travel == null)
                 {
-                    needsNewPath = false;
-                    p = await MovementHelper.FindPathAsync(this, localMap, CurrentLocation, dest, ignoreId, destRange);
-                    Log($"Computed path with {p.Count} nodes");
-                    if (p.Count == 0)
-                        return false;
+                    CurrentNpcInteraction = NpcInteractionType.General;
+                    return false;
                 }
 
-                await MovementHelper.MoveAlongPathAsync(this, p, dest);
-                await Task.Delay(delay);
-
-                if (!string.Equals(_currentMapFile, startMap, StringComparison.OrdinalIgnoreCase))
-                    return false;
-
-                localMap = CurrentMap;
-                if (localMap == null)
-                    return false;
-
-                if (CurrentLocation == lastLoc)
+                foreach (var step in travel)
                 {
-                    needsNewPath = true;
-                    if (stuckSince == DateTime.MinValue)
-                        stuckSince = DateTime.UtcNow;
-                    else if (DateTime.UtcNow - stuckSince > TimeSpan.FromSeconds(5))
+                    if (await ReviveIfDeadAsync())
                     {
-                        var dir = (MirDirection)_random.Next(8);
-                        Log("Stuck while moving, turning to free movement");
-                        await TurnAsync(dir);
-                        stuckSince = DateTime.UtcNow;
+                        CurrentNpcInteraction = NpcInteractionType.General;
+                        return false;
+                    }
+                    Log($"Travelling via {step.SourceMap} -> {step.DestinationMap}");
+                    bool reachedStep = await MoveWithinMapAsync(new Point(step.SourceX, step.SourceY), 0);
+                    if (!reachedStep && Path.GetFileNameWithoutExtension(_currentMapFile) == step.SourceMap)
+                    {
+                        CurrentNpcInteraction = NpcInteractionType.General;
+                        return false;
+                    }
+
+                    int wait = 0;
+                    while (!Disconnected && Path.GetFileNameWithoutExtension(_currentMapFile) == step.SourceMap && wait < 40)
+                    {
+                        await Task.Delay(50);
+                        wait++;
+                    }
+
+                    if (Path.GetFileNameWithoutExtension(_currentMapFile) != step.DestinationMap)
+                    {
+                        CurrentNpcInteraction = NpcInteractionType.General;
+                        return false;
                     }
                 }
-                else
-                {
-                    stuckSince = DateTime.MinValue;
-                }
 
-                lastLoc = CurrentLocation;
+                map = CurrentMap;
+                if (map == null)
+                {
+                    CurrentNpcInteraction = NpcInteractionType.General;
+                    return false;
+                }
             }
 
-            return Functions.MaxDistance(CurrentLocation, dest) <= destRange;
+            bool success = await MoveWithinMapAsync(target, range);
+            Log(success ? "Arrived at target" : "Failed to reach target");
+            CurrentNpcInteraction = NpcInteractionType.General;
+            return success;
         }
-
-        var map = CurrentMap;
-        if (map == null) return false;
-
-        if (await ReviveIfDeadAsync())
-            return false;
-
-        string destMap = targetMap ?? Path.GetFileNameWithoutExtension(_currentMapFile);
-
-        if (string.Equals(Path.GetFileNameWithoutExtension(_currentMapFile), destMap, StringComparison.OrdinalIgnoreCase) &&
-            Functions.MaxDistance(CurrentLocation, target) <= range)
+        finally
         {
-            return true;
+            Travelling = false;
         }
-
-        CurrentNpcInteraction = interactionType;
-        if (!string.Equals(Path.GetFileNameWithoutExtension(_currentMapFile), destMap, StringComparison.OrdinalIgnoreCase))
-        {
-            if (await ReviveIfDeadAsync())
-                return false;
-            var destPath = Path.Combine(MapManager.MapDirectory, destMap + ".map");
-            var travel = MovementHelper.FindTravelPath(this, destPath);
-            if (travel != null)
-                Log($"Travel path length {travel.Count}");
-            if (travel == null)
-            {
-                CurrentNpcInteraction = NpcInteractionType.General;
-                return false;
-            }
-
-            foreach (var step in travel)
-            {
-                if (await ReviveIfDeadAsync())
-                {
-                    CurrentNpcInteraction = NpcInteractionType.General;
-                    return false;
-                }
-                Log($"Travelling via {step.SourceMap} -> {step.DestinationMap}");
-                bool reachedStep = await MoveWithinMapAsync(new Point(step.SourceX, step.SourceY), 0);
-                if (!reachedStep && Path.GetFileNameWithoutExtension(_currentMapFile) == step.SourceMap)
-                {
-                    CurrentNpcInteraction = NpcInteractionType.General;
-                    return false;
-                }
-
-                int wait = 0;
-                while (!Disconnected && Path.GetFileNameWithoutExtension(_currentMapFile) == step.SourceMap && wait < 40)
-                {
-                    await Task.Delay(50);
-                    wait++;
-                }
-
-                if (Path.GetFileNameWithoutExtension(_currentMapFile) != step.DestinationMap)
-                {
-                    CurrentNpcInteraction = NpcInteractionType.General;
-                    return false;
-                }
-            }
-
-            map = CurrentMap;
-            if (map == null)
-            {
-                CurrentNpcInteraction = NpcInteractionType.General;
-                return false;
-            }
-        }
-
-        bool success = await MoveWithinMapAsync(target, range);
-        Log(success ? "Arrived at target" : "Failed to reach target");
-        CurrentNpcInteraction = NpcInteractionType.General;
-        return success;
     }
 
     private static void FireAndForget(Task task)

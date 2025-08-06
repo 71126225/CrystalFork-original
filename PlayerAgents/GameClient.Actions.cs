@@ -36,17 +36,22 @@ public sealed partial class GameClient
         if (_stream == null) return;
         if (_movementSaveCts != null) return;
         CancelMovementDeleteCheck();
-        var first = Functions.PointMove(_currentLocation, direction, 1);
-        var target = Functions.PointMove(_currentLocation, direction, 2);
-        if (RecentlyChangedMap && (IsKnownMovementCell(first) || IsKnownMovementCell(target)))
-            return;
-        await TryOpenDoorAsync(first);
-        await TryOpenDoorAsync(target);
+        int steps = _ridingMount ? 3 : 2;
+        var cells = new Point[steps];
+        for (int i = 0; i < steps; i++)
+        {
+            cells[i] = Functions.PointMove(_currentLocation, direction, i + 1);
+            if (RecentlyChangedMap && IsKnownMovementCell(cells[i]))
+                return;
+        }
+        foreach (var cell in cells)
+            await TryOpenDoorAsync(cell);
+        var target = cells[^1];
         Log($"I am running to {target.X}, {target.Y}");
         _pendingMoveTarget = target;
         _pendingMovementAction.Clear();
-        AddPendingMovementCell(first);
-        AddPendingMovementCell(target);
+        foreach (var cell in cells)
+            AddPendingMovementCell(cell);
         var run = new C.Run { Direction = direction };
         await SendAsync(run);
         _lastMoveTime = DateTime.UtcNow;
@@ -85,12 +90,16 @@ public sealed partial class GameClient
         var now = DateTime.UtcNow;
         if (now - _lastMoveTime > TimeSpan.FromMilliseconds(900)) return false;
 
-        var first = Functions.PointMove(_currentLocation, direction, 1);
-        var second = Functions.PointMove(_currentLocation, direction, 2);
-        if (RecentlyChangedMap && (IsKnownMovementCell(first) || IsKnownMovementCell(second)))
-            return false;
-
-        return !(IsCellBlocked(first) || IsCellBlocked(second));
+        int steps = _ridingMount ? 3 : 2;
+        for (int i = 1; i <= steps; i++)
+        {
+            var cell = Functions.PointMove(_currentLocation, direction, i);
+            if (RecentlyChangedMap && IsKnownMovementCell(cell))
+                return false;
+            if (IsCellBlocked(cell))
+                return false;
+        }
+        return true;
     }
 
     public async Task AttackAsync(MirDirection direction, Spell spell = Spell.None)
@@ -216,6 +225,22 @@ public sealed partial class GameClient
         await SendAsync(equip);
     }
 
+    public async Task EquipMountItemAsync(UserItem item, MountSlot slot)
+    {
+        if (_stream == null || _equipment == null) return;
+        var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+        if (mount == null) return;
+        var equip = new C.EquipSlotItem
+        {
+            Grid = MirGridType.Inventory,
+            UniqueID = item.UniqueID,
+            To = (int)slot,
+            GridTo = MirGridType.Mount,
+            ToUniqueID = mount.UniqueID
+        };
+        await SendAsync(equip);
+    }
+
     private int FindFreeInventorySlot() =>
         _inventory == null ? -1 : Array.FindIndex(_inventory, item => item == null);
 
@@ -316,6 +341,63 @@ public sealed partial class GameClient
         return true;
     }
 
+    public bool CanEquipMountItem(UserItem item, MountSlot slot)
+    {
+        if (_playerClass == null) return false;
+        if (item.Info == null) return false;
+        if (!IsItemForMountSlot(item.Info, slot)) return false;
+
+        if (item.Info.RequiredGender != RequiredGender.None)
+        {
+            RequiredGender genderFlag = _gender == MirGender.Male ? RequiredGender.Male : RequiredGender.Female;
+            if (!item.Info.RequiredGender.HasFlag(genderFlag))
+                return false;
+        }
+
+        RequiredClass playerClassFlag = _playerClass switch
+        {
+            MirClass.Warrior => RequiredClass.Warrior,
+            MirClass.Wizard => RequiredClass.Wizard,
+            MirClass.Taoist => RequiredClass.Taoist,
+            MirClass.Assassin => RequiredClass.Assassin,
+            MirClass.Archer => RequiredClass.Archer,
+            _ => RequiredClass.None
+        };
+
+        if (!item.Info.RequiredClass.HasFlag(playerClassFlag))
+            return false;
+
+        switch (item.Info.RequiredType)
+        {
+            case RequiredType.Level:
+                if (_level < item.Info.RequiredAmount) return false;
+                break;
+            case RequiredType.MaxDC:
+                if (GetStatTotal(Stat.MaxDC) < item.Info.RequiredAmount) return false;
+                break;
+            case RequiredType.MaxMC:
+                if (GetStatTotal(Stat.MaxMC) < item.Info.RequiredAmount) return false;
+                break;
+            case RequiredType.MaxSC:
+                if (GetStatTotal(Stat.MaxSC) < item.Info.RequiredAmount) return false;
+                break;
+            case RequiredType.MinDC:
+                if (GetStatTotal(Stat.MinDC) < item.Info.RequiredAmount) return false;
+                break;
+            case RequiredType.MinMC:
+                if (GetStatTotal(Stat.MinMC) < item.Info.RequiredAmount) return false;
+                break;
+            case RequiredType.MinSC:
+                if (GetStatTotal(Stat.MinSC) < item.Info.RequiredAmount) return false;
+                break;
+            case RequiredType.MaxLevel:
+                if (_level > item.Info.RequiredAmount) return false;
+                break;
+        }
+
+        return true;
+    }
+
     private static bool IsItemForSlot(ItemInfo info, EquipmentSlot slot)
     {
         return slot switch
@@ -336,6 +418,32 @@ public sealed partial class GameClient
             EquipmentSlot.Mount => info.Type == ItemType.Mount,
             _ => false
         };
+    }
+
+    private static bool IsItemForMountSlot(ItemInfo info, MountSlot slot)
+    {
+        return slot switch
+        {
+            MountSlot.Reins => info.Type == ItemType.Reins,
+            MountSlot.Bells => info.Type == ItemType.Bells,
+            MountSlot.Saddle => info.Type == ItemType.Saddle,
+            MountSlot.Ribbon => info.Type == ItemType.Ribbon,
+            MountSlot.Mask => info.Type == ItemType.Mask,
+            _ => false
+        };
+    }
+
+    public async Task EnsureMountedAsync()
+    {
+        if (_stream == null || _equipment == null) return;
+        if (_ridingMount) return;
+
+        var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+        if (mount == null) return;
+        if (mount.Slots.Length <= (int)MountSlot.Saddle || mount.Slots[(int)MountSlot.Saddle] == null) return;
+
+        await SendAsync(new C.Chat { Message = "@ride" });
+        _ridingMount = true;
     }
 
     public async Task PickUpAsync()

@@ -146,6 +146,8 @@ public sealed partial class GameClient
                 _lastMapChangeTime = DateTime.UtcNow;
                 DeliverMapChanged();
                 ReportStatus();
+                if (Travelling)
+                    FireAndForget(EnsureMountedAsync());
                 break;
             case S.MapChanged mc:
                 if (!string.IsNullOrEmpty(_currentMapFile) && !_dead && _pendingMovementAction.Count > 0)
@@ -193,6 +195,8 @@ public sealed partial class GameClient
                 if (_awaitingHarvest)
                     _harvestComplete = true;
                 ReportStatus();
+                if (Travelling)
+                    FireAndForget(EnsureMountedAsync());
                 break;
             case S.UserInformation info:
                 CancelMovementDeleteCheck();
@@ -1000,6 +1004,10 @@ public sealed partial class GameClient
                     else if (st.Spell == Spell.Thrusting)
                         _thrusting = st.CanUse;
                 }
+                break;
+            case S.MountUpdate mu:
+                if (mu.ObjectID == _objectId)
+                    _ridingMount = mu.RidingMount;
                 break;
             case S.AddBuff ab:
                 if (ab.Buff.ObjectID == _objectId)

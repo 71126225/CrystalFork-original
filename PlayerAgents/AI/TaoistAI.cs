@@ -152,26 +152,13 @@ public sealed class TaoistAI : BaseAI
         bool highDamage = Client.MonsterMemory.GetDamage(monster.Name) - avgAC > maxHP / 5;
         bool redPoisoned = monster.Poison.HasFlag(PoisonType.Red);
         bool greenPoisoned = monster.Poison.HasFlag(PoisonType.Green);
-        if (redPoisoned)
-            _redPoisoned.Remove(monster.Id);
         if (greenPoisoned)
             _greenPoisoned.Remove(monster.Id);
+        if (redPoisoned)
+            _redPoisoned.Remove(monster.Id);
 
         if (poison != null && DateTime.UtcNow >= _nextSpellTime)
         {
-            if (!redPoisoned &&
-                (!_redPoisoned.TryGetValue(monster.Id, out var redUntil) || DateTime.UtcNow >= redUntil) &&
-                await EnsureAmuletAsync(2))
-            {
-                if (dist <= attackRange)
-                {
-                    var dir = Functions.DirectionFromPoint(current, monster.Location);
-                    await Client.CastMagicAsync(Spell.Poisoning, dir, monster.Location, monster.Id);
-                    RecordSpellTime();
-                    _redPoisoned[monster.Id] = DateTime.UtcNow + TimeSpan.FromSeconds(8);
-                    return;
-                }
-            }
 
             if (!greenPoisoned &&
                 (!_greenPoisoned.TryGetValue(monster.Id, out var greenUntil) || DateTime.UtcNow >= greenUntil) &&
@@ -183,6 +170,20 @@ public sealed class TaoistAI : BaseAI
                     await Client.CastMagicAsync(Spell.Poisoning, dir, monster.Location, monster.Id);
                     RecordSpellTime();
                     _greenPoisoned[monster.Id] = DateTime.UtcNow + TimeSpan.FromSeconds(8);
+                    return;
+                }
+            }
+
+            if (!redPoisoned &&
+                (!_redPoisoned.TryGetValue(monster.Id, out var redUntil) || DateTime.UtcNow >= redUntil) &&
+                await EnsureAmuletAsync(2))
+            {
+                if (dist <= attackRange)
+                {
+                    var dir = Functions.DirectionFromPoint(current, monster.Location);
+                    await Client.CastMagicAsync(Spell.Poisoning, dir, monster.Location, monster.Id);
+                    RecordSpellTime();
+                    _redPoisoned[monster.Id] = DateTime.UtcNow + TimeSpan.FromSeconds(8);
                     return;
                 }
             }
