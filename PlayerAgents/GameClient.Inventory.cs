@@ -366,11 +366,11 @@ public sealed partial class GameClient
         }
         using (var cts = new CancellationTokenSource(2000))
         {
-            var waitTask = WaitForNpcResponseAsync(cts.Token);
-            Log($"Accessing repair key...");
-            await interaction.SelectFromMainAsync(repairKey, cts.Token);
             try
             {
+                var waitTask = WaitForNpcResponseAsync(cts.Token);
+                Log($"Accessing repair key...");
+                await interaction.SelectFromMainAsync(repairKey, cts.Token);
                 await waitTask;
             }
             catch (OperationCanceledException)
@@ -421,10 +421,10 @@ public sealed partial class GameClient
 
         using (var cts = new CancellationTokenSource(NpcDialogTimeoutMs))
         {
-            var waitTask = WaitForNpcGoodsAsync(cts.Token);
-            await interaction.SelectFromMainAsync(buyKey, cts.Token);
             try
             {
+                var waitTask = WaitForNpcGoodsAsync(cts.Token);
+                await interaction.SelectFromMainAsync(buyKey, cts.Token);
                 await waitTask;
                 UpdateLastStorageAction($"Accessing buy page at {entry.Name}");
             }
@@ -475,10 +475,10 @@ public sealed partial class GameClient
 
         using (var cts = new CancellationTokenSource(NpcDialogTimeoutMs))
         {
-            var waitTask = WaitForNpcGoodsAsync(cts.Token);
-            await interaction.SelectFromMainAsync(buyKey, cts.Token);
             try
             {
+                var waitTask = WaitForNpcGoodsAsync(cts.Token);
+                await interaction.SelectFromMainAsync(buyKey, cts.Token);
                 await waitTask;
             }
             catch (OperationCanceledException)
