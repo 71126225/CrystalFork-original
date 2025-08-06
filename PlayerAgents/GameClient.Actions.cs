@@ -111,6 +111,8 @@ public sealed partial class GameClient
             _slaying = canUse;
         else if (spell == Spell.DoubleSlash)
             _doubleSlash = canUse;
+        else if (spell == Spell.Thrusting)
+            _thrusting = canUse;
     }
 
     public async Task RangeAttackAsync(MirDirection direction, Point targetLocation, uint targetId)

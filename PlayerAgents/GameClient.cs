@@ -103,6 +103,7 @@ public sealed partial class GameClient
 
     private bool _slaying;
     private bool _doubleSlash;
+    private bool _thrusting;
     private long _spellTime;
 
     private DateTime _lastMoveTime = DateTime.MinValue;
@@ -991,6 +992,7 @@ public sealed partial class GameClient
     public int MP => _mp;
     public bool Slaying => _slaying;
     public bool DoubleSlash => _doubleSlash;
+    public bool Thrusting => _thrusting;
     public MapMovementMemoryBank MovementMemory => _movementMemory;
     public MapExpRateMemoryBank ExpRateMemory => _expRateMemory;
     public MonsterMemoryBank MonsterMemory => _monsterMemory;

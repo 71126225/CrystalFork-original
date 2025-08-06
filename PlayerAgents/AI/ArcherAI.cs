@@ -61,7 +61,7 @@ public sealed class ArcherAI : BaseAI
             if (trapCount < maxTraps)
             {
                 int trapDist = Functions.MaxDistance(current, monster.Location);
-                if (trapDist <= 3)
+                if (trapDist <= 4)
                 {
                     var dir = Functions.DirectionFromPoint(current, monster.Location);
                     var front = Functions.PointMove(current, dir, 1);

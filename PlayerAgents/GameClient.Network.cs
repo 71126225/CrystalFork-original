@@ -997,6 +997,8 @@ public sealed partial class GameClient
                         _slaying = st.CanUse;
                     else if (st.Spell == Spell.DoubleSlash)
                         _doubleSlash = st.CanUse;
+                    else if (st.Spell == Spell.Thrusting)
+                        _thrusting = st.CanUse;
                 }
                 break;
             case S.KeepAlive keep:
