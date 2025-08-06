@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using PlayerAgents.Map;
 
@@ -162,14 +163,26 @@ public class BaseAI
         var teleport = Client.FindTownTeleport();
         if (teleport == null) return;
 
-        var mapChange = Client.WaitForMapChangeAsync(waitForNextMap: true);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var mapChange = Client.WaitForMapChangeAsync(waitForNextMap: true, cts.Token);
         await Client.UseItemAsync(teleport);
         string name = teleport.Info?.FriendlyName ?? "town teleport";
         Client.Log($"Used {name} for inventory refresh");
-        await mapChange;
-        await Client.RecordSafezoneAsync();
-        _nextInventoryTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(10);
-        _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
+        if (mapChange.IsCompleted)
+            mapChange = Client.WaitForMapChangeAsync(waitForNextMap: true, cts.Token);
+        try
+        {
+            await mapChange;
+            await Client.RecordSafezoneAsync();
+            _nextInventoryTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(10);
+            _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
+        }
+        catch (TaskCanceledException)
+        {
+            Client.Log($"Map did not change after using {name}");
+            _nextInventoryTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
+            _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
+        }
     }
 
     private async Task WaitForInventoryTeleportAsync()
