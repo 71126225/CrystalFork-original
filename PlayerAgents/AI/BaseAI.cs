@@ -1194,6 +1194,7 @@ public class BaseAI
         var toRepair = equipment
             .Where(i => i != null && i.Info != null &&
                         i.Info.Type != ItemType.Torch &&
+                        i.Info.Type != ItemType.Mount &&
                         i.CurrentDura < i.MaxDura &&
                         !i.Info.Bind.HasFlag(BindMode.DontRepair))
             .ToList();
