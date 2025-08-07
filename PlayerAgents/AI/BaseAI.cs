@@ -37,6 +37,8 @@ public class BaseAI
     // Monsters with these AI values or an empty name are ignored when selecting a target
     internal static readonly HashSet<byte> IgnoredAIs = new() { 6, 58, 57, 56, 64, 80, 81, 82 };
 
+    private const int NpcInteractionRange = Globals.DataRange;
+
     protected static bool IsOffensiveSlot(EquipmentSlot slot) => OffensiveSlots.Contains(slot);
 
     public BaseAI(GameClient client)
@@ -1024,7 +1026,7 @@ public class BaseAI
         }
 
         Client.Log($"Moving to NPC {entry?.Name ?? npcId.ToString()} at {location.X},{location.Y}");
-        bool reached = await Client.MoveWithinRangeAsync(location, npcId, Globals.DataRange, interactionType, WalkDelay, entry?.MapFile);
+        bool reached = await Client.MoveWithinRangeAsync(location, npcId, NpcInteractionRange, interactionType, WalkDelay, entry?.MapFile);
         if (!reached)
         {
             Client.Log($"Could not path to {entry?.Name ?? npcId.ToString()}");
@@ -1040,7 +1042,7 @@ public class BaseAI
             if (entry != null)
             {
                 var near = Client.TrackedObjects.Values.FirstOrDefault(o => o.Type == ObjectType.Merchant &&
-                    Functions.MaxDistance(o.Location, location) <= Globals.DataRange);
+                    Functions.MaxDistance(o.Location, location) <= NpcInteractionRange);
                 if (near != null)
                     Client.IgnoreNpc(entry);
                 Client.RemoveNpc(entry);
@@ -1158,7 +1160,7 @@ public class BaseAI
             Client.Log($"I am heading to {entry.Name} at {loc.X}, {loc.Y} to access storage");
 
         Client.UpdateAction("accessing storage...");
-        bool reached = await Client.MoveWithinRangeAsync(loc, npcId, 8, NpcInteractionType.Storing, WalkDelay, entry?.MapFile);
+        bool reached = await Client.MoveWithinRangeAsync(loc, npcId, NpcInteractionRange, NpcInteractionType.Storing, WalkDelay, entry?.MapFile);
         if (!reached) return;
 
         if (npcId == 0 && entry != null)
@@ -1415,7 +1417,7 @@ public class BaseAI
             if (entry != null)
                 Client.Log($"Resolving goods at {entry.Name} at {loc.X}, {loc.Y}");
 
-            bool reached = await Client.MoveWithinRangeAsync(loc, npcId, Globals.DataRange, NpcInteractionType.Buying, WalkDelay, entry?.MapFile);
+            bool reached = await Client.MoveWithinRangeAsync(loc, npcId, NpcInteractionRange, NpcInteractionType.Buying, WalkDelay, entry?.MapFile);
             if (!reached)
                 return;
 
