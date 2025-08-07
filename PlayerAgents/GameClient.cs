@@ -43,6 +43,7 @@ public sealed partial class GameClient
     private readonly byte[] _buffer = new byte[1024 * 8];
     private readonly MemoryStream _receiveStream = new();
     private readonly Random _random = new();
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
     private MirClass? _playerClass;
     private BaseStats? _baseStats;
     private readonly TaskCompletionSource<MirClass> _classTcs = new();

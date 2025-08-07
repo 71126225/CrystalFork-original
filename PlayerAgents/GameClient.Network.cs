@@ -17,7 +17,16 @@ public sealed partial class GameClient
     {
         if (_stream == null) return;
         var data = p.GetPacketBytes().ToArray();
-        await _stream.WriteAsync(data, 0, data.Length);
+        await _sendLock.WaitAsync();
+        try
+        {
+            if (_stream != null)
+                await _stream.WriteAsync(data, 0, data.Length);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
     }
 
     private async Task ReceiveLoop()
