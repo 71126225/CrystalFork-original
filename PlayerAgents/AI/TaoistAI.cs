@@ -306,7 +306,7 @@ public sealed class TaoistAI : BaseAI
                 var path = await FindBufferedPathAsync(map, current, target.Location, 3);
                 if (path.Count > 0)
                     return await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
-                return true;
+                return false;
             }
 
             if (dist <= retreatRange)
@@ -318,7 +318,7 @@ public sealed class TaoistAI : BaseAI
                     if (path.Count > 0)
                         return await MovementHelper.MoveAlongPathAsync(Client, path, safe);
                 }
-                return true;
+                return false;
             }
 
             return false;
