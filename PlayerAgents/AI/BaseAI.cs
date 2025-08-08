@@ -683,6 +683,11 @@ public class BaseAI
 
         if (DateTime.UtcNow >= _nextAttackTime)
         {
+            if (Client.RidingMount)
+            {
+                await Client.EnsureUnmountedAsync();
+            }
+
             await AttackMonsterAsync(target, current);
         }
     }

@@ -446,6 +446,15 @@ public sealed partial class GameClient
         _ridingMount = true;
     }
 
+    public async Task EnsureUnmountedAsync()
+    {
+        if (_stream == null) return;
+        if (!_ridingMount) return;
+
+        await SendAsync(new C.Chat { Message = "@ride" });
+        _ridingMount = false;
+    }
+
     public async Task PickUpAsync()
     {
         if (_stream == null) return;
