@@ -1348,7 +1348,7 @@ public class BaseAI
                 }
 
                 if (entry != null)
-                    Client.Log($"Heading to {entry.Name} at {loc.X}, {loc.Y} to buy items");
+                    Client.Log($"Heading to {entry.Name} at {loc.X}, {loc.Y} to buy {string.Join(", ", matched.Select(t => t.ToString()))}");
 
                 var result = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Buying);
 
