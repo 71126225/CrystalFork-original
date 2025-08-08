@@ -455,6 +455,12 @@ public sealed partial class GameClient
         _ridingMount = false;
     }
 
+    public async Task ChangePetModeAsync(PetMode mode)
+    {
+        if (_stream == null) return;
+        await SendAsync(new C.ChangePMode { Mode = mode });
+    }
+
     public async Task PickUpAsync()
     {
         if (_stream == null) return;

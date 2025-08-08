@@ -175,6 +175,7 @@ public class BaseAI
         try
         {
             await mapChange;
+            await Task.Delay(TimeSpan.FromSeconds(3));
             await Client.RecordSafezoneAsync();
             _nextInventoryTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(10);
             _nextTownTeleportTime = DateTime.UtcNow + TimeSpan.FromMinutes(1);
@@ -1020,66 +1021,80 @@ public class BaseAI
         CantAfford
     }
 
+    protected virtual Task BeforeNpcInteractionAsync(Point location, uint npcId, NpcEntry? entry, NpcInteractionType interactionType)
+        => Task.CompletedTask;
+
+    protected virtual Task AfterNpcInteractionAsync(Point location, uint npcId, NpcEntry? entry, NpcInteractionType interactionType)
+        => Task.CompletedTask;
+
     private async Task<NpcInteractionResult> InteractWithNpcAsync(Point location, uint npcId, NpcEntry? entry,
         NpcInteractionType interactionType, IReadOnlyList<(UserItem item, ushort count)>? sellItems = null)
     {
-        if (DateTime.UtcNow < _travelPauseUntil)
+        await BeforeNpcInteractionAsync(location, npcId, entry, interactionType);
+        try
         {
-            Client.Log("NPC pathing paused");
-            Client.UpdateAction("roaming...");
-            return NpcInteractionResult.PathFailed;
-        }
-
-        Client.Log($"Moving to NPC {entry?.Name ?? npcId.ToString()} at {location.X},{location.Y}");
-        bool reached = await Client.MoveWithinRangeAsync(location, npcId, NpcInteractionRange, interactionType, WalkDelay, entry?.MapFile);
-        if (!reached)
-        {
-            Client.Log($"Could not path to {entry?.Name ?? npcId.ToString()}");
-            return NpcInteractionResult.PathFailed;
-        }
-
-        if (npcId == 0 && entry != null)
-            npcId = await Client.ResolveNpcIdAsync(entry);
-
-        if (npcId == 0)
-        {
-            Client.Log($"Could not find NPC to {interactionType.ToString().ToLower()}");
-            if (entry != null)
+            if (DateTime.UtcNow < _travelPauseUntil)
             {
-                var near = Client.TrackedObjects.Values.FirstOrDefault(o => o.Type == ObjectType.Merchant &&
-                    Functions.MaxDistance(o.Location, location) <= NpcInteractionRange);
-                if (near != null)
-                    Client.IgnoreNpc(entry);
-                Client.RemoveNpc(entry);
+                Client.Log("NPC pathing paused");
+                Client.UpdateAction("roaming...");
+                return NpcInteractionResult.PathFailed;
             }
-            return NpcInteractionResult.NpcNotFound;
-        }
 
-        switch (interactionType)
-        {
-            case NpcInteractionType.General:
+            Client.Log($"Moving to NPC {entry?.Name ?? npcId.ToString()} at {location.X},{location.Y}");
+            bool reached = await Client.MoveWithinRangeAsync(location, npcId, NpcInteractionRange, interactionType, WalkDelay, entry?.MapFile);
+            if (!reached)
+            {
+                Client.Log($"Could not path to {entry?.Name ?? npcId.ToString()}");
+                return NpcInteractionResult.PathFailed;
+            }
+
+            if (npcId == 0 && entry != null)
+                npcId = await Client.ResolveNpcIdAsync(entry);
+
+            if (npcId == 0)
+            {
+                Client.Log($"Could not find NPC to {interactionType.ToString().ToLower()}");
                 if (entry != null)
-                    Client.StartNpcInteraction(npcId, entry);
-                break;
-            case NpcInteractionType.Buying:
-                if (await Client.BuyNeededItemsAtNpcAsync(npcId))
-                    return NpcInteractionResult.CantAfford;
-                break;
-            case NpcInteractionType.Selling:
-                if (sellItems != null)
                 {
-                    await Client.SellItemsToNpcAsync(npcId, sellItems);
-                    Client.Log($"Finished selling to {entry?.Name ?? npcId.ToString()}");
+                    var near = Client.TrackedObjects.Values.FirstOrDefault(o => o.Type == ObjectType.Merchant &&
+                        Functions.MaxDistance(o.Location, location) <= NpcInteractionRange);
+                    if (near != null)
+                        Client.IgnoreNpc(entry);
+                    Client.RemoveNpc(entry);
                 }
-                break;
-            case NpcInteractionType.Repairing:
-                if (await Client.RepairItemsAtNpcAsync(npcId))
-                    return NpcInteractionResult.CantAfford;
-                Client.Log($"Finished repairing at {entry?.Name ?? npcId.ToString()}");
-                break;
-        }
+                return NpcInteractionResult.NpcNotFound;
+            }
 
-        return NpcInteractionResult.Success;
+            switch (interactionType)
+            {
+                case NpcInteractionType.General:
+                    if (entry != null)
+                        Client.StartNpcInteraction(npcId, entry);
+                    break;
+                case NpcInteractionType.Buying:
+                    if (await Client.BuyNeededItemsAtNpcAsync(npcId))
+                        return NpcInteractionResult.CantAfford;
+                    break;
+                case NpcInteractionType.Selling:
+                    if (sellItems != null)
+                    {
+                        await Client.SellItemsToNpcAsync(npcId, sellItems);
+                        Client.Log($"Finished selling to {entry?.Name ?? npcId.ToString()}");
+                    }
+                    break;
+                case NpcInteractionType.Repairing:
+                    if (await Client.RepairItemsAtNpcAsync(npcId))
+                        return NpcInteractionResult.CantAfford;
+                    Client.Log($"Finished repairing at {entry?.Name ?? npcId.ToString()}");
+                    break;
+            }
+
+            return NpcInteractionResult.Success;
+        }
+        finally
+        {
+            await AfterNpcInteractionAsync(location, npcId, entry, interactionType);
+        }
     }
 
     private async Task HandleInventoryAsync(bool force = false, bool keepIgnore = false)
@@ -1390,21 +1405,29 @@ public class BaseAI
     private async Task<bool> SellRepairAndBuyAsync()
     {
         await WaitForInventoryTeleportAsync();
-        Client.IgnoreNpcInteractions = true;
+        await BeforeNpcInteractionAsync(Client.CurrentLocation, 0, null, NpcInteractionType.General);
         try
         {
-            await HandleStorageAsync();
-            await HandleInventoryAsync(true, true);
-            bool cantAfford = await HandleEquipmentRepairsAsync(true, true);
-            UpdatePendingBuyTypes();
-            cantAfford |= await HandleBuyingItemsAsync(true);
-            await ResolveNearbyGoodsAsync();
-            return cantAfford;
+            Client.IgnoreNpcInteractions = true;
+            try
+            {
+                await HandleStorageAsync();
+                await HandleInventoryAsync(true, true);
+                bool cantAfford = await HandleEquipmentRepairsAsync(true, true);
+                UpdatePendingBuyTypes();
+                cantAfford |= await HandleBuyingItemsAsync(true);
+                await ResolveNearbyGoodsAsync();
+                return cantAfford;
+            }
+            finally
+            {
+                Client.IgnoreNpcInteractions = false;
+                Client.ResumeNpcInteractions();
+            }
         }
         finally
         {
-            Client.IgnoreNpcInteractions = false;
-            Client.ResumeNpcInteractions();
+            await AfterNpcInteractionAsync(Client.CurrentLocation, 0, null, NpcInteractionType.General);
         }
     }
 

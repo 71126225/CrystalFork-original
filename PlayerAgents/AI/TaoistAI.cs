@@ -2,6 +2,8 @@ using Shared;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using PlayerAgents.Map;
 
@@ -14,6 +16,7 @@ public sealed class TaoistAI : BaseAI
     private readonly Dictionary<uint, DateTime> _greenPoisoned = new();
 
     private uint? _skeletonId;
+    private bool _skeletonResting;
     private const string SkeletonName = "BoneFamiliar";
 
     private void RecordSpellTime()
@@ -104,6 +107,68 @@ public sealed class TaoistAI : BaseAI
         return null;
     }
 
+    private bool HasNearbySkeleton(Point loc)
+    {
+        foreach (var o in Client.TrackedObjects.Values)
+        {
+            if (o.Dead || o.Hidden) continue;
+            if (o.Id == _skeletonId) continue;
+            if (o.Type != ObjectType.Monster || !o.Tamed) continue;
+            if (!o.Name.StartsWith(SkeletonName, StringComparison.OrdinalIgnoreCase)) continue;
+            if (Functions.MaxDistance(o.Location, loc) <= 1)
+                return true;
+        }
+        return false;
+    }
+
+    private async Task RestSkeletonAsync()
+    {
+        var skeleton = GetSkeleton();
+        if (skeleton == null) return;
+        if (string.IsNullOrEmpty(Client.CurrentMapFile)) return;
+        var map = Client.CurrentMap;
+        if (map == null) return;
+        var mapName = Path.GetFileNameWithoutExtension(Client.CurrentMapFile);
+
+        var current = Client.CurrentLocation;
+        var zones = Client.SafezoneMemory.GetAll()
+            .Where(z => z.Map.Equals(mapName, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(z => DistanceToZone(current, z));
+
+        foreach (var zone in zones)
+        {
+            var candidates = new List<Point>();
+            for (int x = zone.X - zone.Size; x <= zone.X + zone.Size; x++)
+            {
+                for (int y = zone.Y - zone.Size; y <= zone.Y + zone.Size; y++)
+                {
+                    var loc = new Point(x, y);
+                    if (!map.IsWalkable(loc.X, loc.Y)) continue;
+                    if (HasNearbySkeleton(loc)) continue;
+                    candidates.Add(loc);
+                }
+            }
+
+            foreach (var loc in candidates.OrderBy(p => Functions.MaxDistance(current, p)))
+            {
+                bool reached = await Client.MoveWithinRangeAsync(loc, 0, 0, NpcInteractionType.General, WalkDelay, null);
+                if (!reached) continue;
+                await Client.ChangePetModeAsync(PetMode.None);
+                _skeletonResting = true;
+                return;
+            }
+        }
+    }
+
+    private static int DistanceToZone(Point current, SafezoneEntry zone)
+    {
+        int dx = Math.Abs(current.X - zone.X) - zone.Size;
+        if (dx < 0) dx = 0;
+        int dy = Math.Abs(current.Y - zone.Y) - zone.Size;
+        if (dy < 0) dy = 0;
+        return Math.Max(dx, dy);
+    }
+
     private async Task EnsureSkeletonAsync(Point current)
     {
         var magic = GetMagic(Spell.SummonSkeleton);
@@ -117,6 +182,9 @@ public sealed class TaoistAI : BaseAI
 
         await Client.CastMagicAsync(Spell.SummonSkeleton, MirDirection.Up, current, 0);
         RecordSpellTime();
+
+        await Client.ChangePetModeAsync(PetMode.Both);
+        _skeletonResting = false;
     }
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
@@ -263,6 +331,20 @@ public sealed class TaoistAI : BaseAI
         }
 
         return false;
+    }
+
+    protected override async Task BeforeNpcInteractionAsync(Point location, uint npcId, NpcEntry? entry, NpcInteractionType interactionType)
+    {
+        await RestSkeletonAsync();
+    }
+
+    protected override async Task AfterNpcInteractionAsync(Point location, uint npcId, NpcEntry? entry, NpcInteractionType interactionType)
+    {
+        if (_skeletonResting)
+        {
+            await Client.ChangePetModeAsync(PetMode.Both);
+            _skeletonResting = false;
+        }
     }
 
     protected override IReadOnlyList<DesiredItem> DesiredItems

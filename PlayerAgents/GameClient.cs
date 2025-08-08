@@ -238,7 +238,6 @@ public sealed partial class GameClient
         var map = _currentMapFile;
         var loc = _currentLocation;
         if (_safezoneMemory.HasSafezone(map, loc)) return;
-        await Task.Delay(TimeSpan.FromSeconds(3));
         RecordSafezoneAt(map, loc);
     }
 
