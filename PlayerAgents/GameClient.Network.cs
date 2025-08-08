@@ -653,6 +653,20 @@ public sealed partial class GameClient
                     }
                 }
             break;
+            case S.EquipSlotItem esi:
+                if (esi.Grid == MirGridType.Inventory && esi.GridTo == MirGridType.Mount && esi.Success && _inventory != null && _equipment != null)
+                {
+                    int invIndex = Array.FindIndex(_inventory, x => x != null && x.UniqueID == esi.UniqueID);
+                    var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+                    if (invIndex >= 0 && mount != null && esi.To >= 0 && esi.To < mount.Slots.Length)
+                    {
+                        mount.Slots[esi.To] = _inventory[invIndex];
+                        _inventory[invIndex] = null;
+                        RemoveFromPendingStorage(esi.UniqueID);
+                        MarkStatsDirty();
+                    }
+                }
+                break;
             case S.RemoveItem ri:
                 if (ri.Grid == MirGridType.Inventory && ri.Success && _inventory != null && _equipment != null)
                 {

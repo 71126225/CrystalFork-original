@@ -915,6 +915,7 @@ public sealed partial class GameClient
 
         int bestSlot = -1;
         int bestDiff = 0;
+        MountSlot? bestMountSlot = null;
 
         for (int slot = 0; slot < _equipment.Length; slot++)
         {
@@ -930,12 +931,38 @@ public sealed partial class GameClient
             {
                 bestDiff = diff;
                 bestSlot = slot;
+                bestMountSlot = null;
             }
         }
 
-        if (bestSlot >= 0 && bestDiff > 0)
+        var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+        if (mount != null)
         {
-            await EquipItemAsync(item, (EquipmentSlot)bestSlot);
+            for (int i = 0; i < mount.Slots.Length; i++)
+            {
+                var mountSlot = (MountSlot)i;
+                if (!IsItemForMountSlot(item.Info, mountSlot)) continue;
+                if (!CanEquipMountItem(item, mountSlot)) continue;
+
+                var current = mount.Slots[i];
+                int newScore = GetItemScore(item, EquipmentSlot.Mount);
+                int currentScore = current != null ? GetItemScore(current, EquipmentSlot.Mount) : -1;
+                int diff = newScore - currentScore;
+                if (diff > bestDiff)
+                {
+                    bestDiff = diff;
+                    bestMountSlot = mountSlot;
+                    bestSlot = -1;
+                }
+            }
+        }
+
+        if (bestDiff > 0)
+        {
+            if (bestMountSlot.HasValue)
+                await EquipMountItemAsync(item, bestMountSlot.Value);
+            else if (bestSlot >= 0)
+                await EquipItemAsync(item, (EquipmentSlot)bestSlot);
             await Task.Delay(200);
             _lastPickedItem = null;
         }
