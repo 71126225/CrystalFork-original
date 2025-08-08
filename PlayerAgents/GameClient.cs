@@ -2146,6 +2146,7 @@ public sealed partial class GameClient
 
     private void ProcessNpcGoods(IEnumerable<UserItem> goods, PanelType type)
     {
+        if (_npcGoodsTcs == null) return;
         if (!_dialogNpcId.HasValue) return;
         if (!_npcEntries.TryGetValue(_dialogNpcId.Value, out var entry)) return;
 
@@ -2164,19 +2165,22 @@ public sealed partial class GameClient
             return g;
         }).ToList();
         _lastNpcGoodsType = type;
-
-        entry.BuyItems ??= new List<BuyItem>();
-        foreach (var it in _lastNpcGoods)
+        bool goodsKnown = entry.CheckedMerchantKeys && entry.BuyItems != null;
+        if (!goodsKnown)
         {
-            int index = it.Info?.Index ?? it.ItemIndex;
-            if (!entry.BuyItems.Any(b => b.Index == index))
-                entry.BuyItems.Add(new BuyItem { Index = index });
+            entry.BuyItems ??= new List<BuyItem>();
+            foreach (var it in _lastNpcGoods)
+            {
+                int index = it.Info?.Index ?? it.ItemIndex;
+                if (!entry.BuyItems.Any(b => b.Index == index))
+                    entry.BuyItems.Add(new BuyItem { Index = index });
+            }
+            _npcMemory.SaveChanges();
         }
 
         // Mark this NPC's goods as resolved so other agents do not repeat the work
         ResolvedGoodsNpcs[(entry.Name, entry.MapFile, entry.X, entry.Y)] = true;
 
-        _npcMemory.SaveChanges();
         _npcGoodsTcs?.TrySetResult(true);
         _npcGoodsTcs = null;
     }

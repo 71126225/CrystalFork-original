@@ -1442,7 +1442,7 @@ public class BaseAI
             return true;
 
         var equipment = Client.Equipment;
-        if (equipment != null && equipment.Any(i => i != null && i.Info != null && i.Info.Type != ItemType.Torch && i.CurrentDura < i.MaxDura))
+        if (equipment != null && equipment.Any(i => i != null && i.Info != null && i.Info.Type != ItemType.Torch && i.Info.Type != ItemType.Mount && i.CurrentDura < i.MaxDura))
             return true;
 
         var inventory = Client.Inventory;
