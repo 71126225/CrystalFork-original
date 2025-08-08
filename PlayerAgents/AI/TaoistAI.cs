@@ -38,6 +38,7 @@ public sealed class TaoistAI : BaseAI
         yield return Spell.Poisoning;
         yield return Spell.SoulFireBall;
         yield return Spell.Healing;
+        yield return Spell.SoulShield;
     }
 
     protected override int GetItemScore(UserItem item, EquipmentSlot slot)
@@ -192,6 +193,17 @@ public sealed class TaoistAI : BaseAI
         if (monster.Dead || monster.Hidden) return;
 
         await EnsureSkeletonAsync(current);
+
+        var soulShield = GetMagic(Spell.SoulShield);
+        if (soulShield != null && !Client.HasBuff(BuffType.SoulShield) && DateTime.UtcNow >= _nextSpellTime)
+        {
+            if (await EnsureAmuletAsync(0))
+            {
+                await Client.CastMagicAsync(Spell.SoulShield, MirDirection.Up, current, Client.ObjectId);
+                RecordSpellTime();
+                return;
+            }
+        }
 
         var map = Client.CurrentMap;
         int maxHP = Client.GetMaxHP();
@@ -356,11 +368,12 @@ public sealed class TaoistAI : BaseAI
             bool hasSoulFire = Client.Magics.Any(m => m.Spell == Spell.SoulFireBall);
             bool hasPoison = Client.Magics.Any(m => m.Spell == Spell.Poisoning);
             bool hasSkeleton = Client.Magics.Any(m => m.Spell == Spell.SummonSkeleton);
+            bool hasSoulShield = Client.Magics.Any(m => m.Spell == Spell.SoulShield);
 
-            if (hasSoulFire)
+            if (hasSoulFire || hasSkeleton || hasSoulShield)
                 list.Add(new DesiredItem(ItemType.Amulet, shape: 0, count: 500));
 
-            if (hasPoison || hasSkeleton)
+            if (hasPoison)
                 list.Add(new DesiredItem(ItemType.Amulet, shape: 1, count: 500));
 
             if (hasPoison)
