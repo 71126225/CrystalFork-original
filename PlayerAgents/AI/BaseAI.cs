@@ -1308,13 +1308,13 @@ public class BaseAI
         _buyAttempted = false;
     }
 
-    private void RefreshPendingBuyTypes()
+    private void RefreshPendingBuyTypes(IEnumerable<ItemType>? types = null)
     {
-        foreach (var type in _pendingBuyTypes.ToList())
+        var toCheck = types != null ? types.ToList() : _pendingBuyTypes.ToList();
+        foreach (var type in toCheck)
         {
-            var desired = DesiredItems.FirstOrDefault(d => d.Type == type);
-            if (desired == null) continue;
-            if (!NeedMoreOfDesiredItem(desired))
+            var desired = DesiredItems.Where(d => d.Type == type).ToList();
+            if (desired.Count == 0 || desired.All(d => !NeedMoreOfDesiredItem(d)))
                 _pendingBuyTypes.Remove(type);
         }
     }
@@ -1326,8 +1326,6 @@ public class BaseAI
 
         if (_pendingBuyTypes.Count == 0) return cantAfford;
 
-        var neededTypes = _pendingBuyTypes.ToHashSet();
-
         _buyAttempted = true;
         _buyingItems = true;
         Client.UpdateAction("buying items");
@@ -1335,7 +1333,7 @@ public class BaseAI
 
         try
         {
-            while (neededTypes.Count > 0)
+            while (_pendingBuyTypes.Count > 0)
             {
                 uint npcId = 0;
                 Point loc = default;
@@ -1343,7 +1341,7 @@ public class BaseAI
                 var matched = new List<ItemType>();
 
                 EquipmentUpgradeInfo? upgrade = null;
-                foreach (var t in neededTypes)
+                foreach (var t in _pendingBuyTypes)
                 {
                     if (Client.TryGetEquipmentUpgradeTarget(t, out var info))
                     {
@@ -1358,13 +1356,26 @@ public class BaseAI
                     loc = new Point(entry.X, entry.Y);
                     matched.Add(upgrade.Type);
                 }
-                else if (neededTypes.Contains(ItemType.Book) && Client.TryFindNearestLearnableBookNpc(out npcId, out loc, out entry))
+                else if (_pendingBuyTypes.Contains(ItemType.Book) && Client.TryFindNearestLearnableBookNpc(out npcId, out loc, out entry))
                 {
                     matched.Add(ItemType.Book);
                 }
-                else if (!Client.TryFindNearestBuyNpc(neededTypes, out npcId, out loc, out entry, out matched, includeUnknowns: false))
+                else
                 {
-                    break;
+                    DesiredItem? target = null;
+                    foreach (var desired in DesiredItems)
+                    {
+                        if (!_pendingBuyTypes.Contains(desired.Type) || !NeedMoreOfDesiredItem(desired)) continue;
+                        if (Client.TryFindNearestBuyNpc(desired, out npcId, out loc, out entry, includeUnknowns: false))
+                        {
+                            target = desired;
+                            matched.Add(desired.Type);
+                            break;
+                        }
+                    }
+
+                    if (target == null)
+                        break;
                 }
 
                 if (entry != null)
@@ -1372,11 +1383,7 @@ public class BaseAI
 
                 var result = await InteractWithNpcAsync(loc, npcId, entry, NpcInteractionType.Buying);
 
-                foreach (var t in matched)
-                    _pendingBuyTypes.Remove(t);
-
                 RefreshPendingBuyTypes();
-                neededTypes = _pendingBuyTypes.ToHashSet();
 
                 if (result != NpcInteractionResult.Success)
                 {

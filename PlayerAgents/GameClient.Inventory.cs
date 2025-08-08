@@ -159,6 +159,16 @@ public sealed partial class GameClient
         }, out id, out location, out entry);
     }
 
+    public bool TryFindNearestBuyNpc(DesiredItem desired, out uint id, out Point location, out NpcEntry? entry, bool includeUnknowns = true)
+    {
+        return TryFindNearestNpc(e =>
+        {
+            bool knows = e.BuyItems != null && e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && MatchesDesiredItem(info, desired));
+            bool unknown = e.CanBuy && (e.BuyItems == null || !e.BuyItems.Any(b => ItemInfoDict.TryGetValue(b.Index, out var info) && MatchesDesiredItem(info, desired)));
+            return knows || (includeUnknowns && unknown);
+        }, out id, out location, out entry);
+    }
+
     public bool TryFindNearestBuyNpc(IEnumerable<ItemType> types, out uint id, out Point location, out NpcEntry? entry, out List<ItemType> matchedTypes, bool includeUnknowns = true)
     {
         return TryFindNearestNpc(e =>
@@ -173,6 +183,20 @@ public sealed partial class GameClient
             }
             return sells;
         }, out id, out location, out entry, out matchedTypes);
+    }
+
+    private static bool MatchesDesiredItem(ItemInfo info, DesiredItem desired)
+    {
+        if (info.Type != desired.Type) return false;
+        if (desired.Shape.HasValue && info.Shape != desired.Shape.Value) return false;
+        if (desired.HpPotion.HasValue)
+        {
+            bool healsHP = info.Stats[Stat.HP] > 0 || info.Stats[Stat.HPRatePercent] > 0;
+            bool healsMP = info.Stats[Stat.MP] > 0 || info.Stats[Stat.MPRatePercent] > 0;
+            if (desired.HpPotion.Value && !healsHP) return false;
+            if (!desired.HpPotion.Value && !healsMP) return false;
+        }
+        return true;
     }
 
     public bool TryFindNearestStorageNpc(out uint id, out Point location, out NpcEntry? entry)
