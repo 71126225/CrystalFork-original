@@ -1808,6 +1808,31 @@ public class BaseAI
                     continue;
                 }
             }
+            else if (Client.IsGroupLeader)
+            {
+                TrackedObject? farMember = null;
+                int maxDist = 0;
+                foreach (var name in Client.GroupMembers)
+                {
+                    if (string.Equals(name, Client.PlayerName, StringComparison.OrdinalIgnoreCase)) continue;
+                    var member = Client.TrackedObjects.Values
+                        .Where(o => o.Type == ObjectType.Player && o.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                        .FirstOrDefault();
+                    if (member == null) continue;
+                    int dist = Functions.MaxDistance(current, member.Location);
+                    if (dist > 10 && dist > maxDist)
+                    {
+                        maxDist = dist;
+                        farMember = member;
+                    }
+                }
+                if (farMember != null)
+                {
+                    await MoveToTargetAsync(map, current, farMember, 10);
+                    await Task.Delay(WalkDelay);
+                    continue;
+                }
+            }
             if (await AvoidDangerousMonstersAsync(map, current))
             {
                 await Task.Delay(WalkDelay);
@@ -1916,6 +1941,23 @@ public class BaseAI
 
                 if (!traveling && !_lostTargetLocation.HasValue)
                 {
+                    if (Client.GroupLeader != null && !Client.IsGroupLeader)
+                    {
+                        var leaderName = Client.GroupLeader;
+                        var leader = Client.TrackedObjects.Values
+                            .Where(o => o.Type == ObjectType.Player && o.Name.Equals(leaderName, StringComparison.OrdinalIgnoreCase))
+                            .FirstOrDefault();
+                        if (leader != null)
+                        {
+                            _searchDestination = null;
+                            _currentRoamPath = null;
+                            _lastRoamDirection = null;
+                            await MoveToTargetAsync(map, current, leader, 7);
+                            await Task.Delay(WalkDelay);
+                            continue;
+                        }
+                    }
+
                     if (_searchDestination == null ||
                         Functions.MaxDistance(current, _searchDestination.Value) <= 1 ||
                         !map.IsWalkable(_searchDestination.Value.X, _searchDestination.Value.Y) ||
