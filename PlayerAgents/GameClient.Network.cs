@@ -263,6 +263,12 @@ public sealed partial class GameClient
                 var playerObj = new TrackedObject(op.ObjectID, ObjectType.Player, op.Name, op.Location, op.Direction);
                 playerObj.Poison = op.Poison;
                 AddTrackedObject(playerObj);
+                if (op.ObjectID == _objectId)
+                {
+                    _elementLevel = (int)op.ElementOrbLvl;
+                    _elementCount = (int)op.ElementOrbEffect;
+                    _hasElements = _elementCount > 0;
+                }
                 break;
             case S.ObjectMonster om:
                 var monsterObj = new TrackedObject(om.ObjectID, ObjectType.Monster, om.Name, om.Location, om.Direction, om.AI, om.Dead);
@@ -494,6 +500,17 @@ public sealed partial class GameClient
             case S.ObjectPoisoned opoi:
                 if (_trackedObjects.TryGetValue(opoi.ObjectID, out var objP))
                     objP.Poison = opoi.Poison;
+                break;
+            case S.SetElemental se:
+                if (se.ObjectID == _objectId)
+                {
+                    _hasElements = se.Enabled;
+                    _elementLevel = (int)se.Value;
+                    if (se.ElementType > 0)
+                        _elementCount = (int)se.ElementType;
+                    else if (!_hasElements)
+                        _elementCount = 0;
+                }
                 break;
             case S.ObjectHarvested oh:
                 UpdateTrackedObject(oh.ObjectID, oh.Location, oh.Direction);

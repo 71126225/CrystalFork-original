@@ -12,6 +12,9 @@ public sealed class ArcherAI : BaseAI
     private Point? _cachedShootSpot;
     private DateTime _nextShootSpotCheck = DateTime.MinValue;
 
+    public bool HasElements => Client.HasElements;
+    public int ElementCount => Client.ElementCount;
+
     public ArcherAI(GameClient client) : base(client) { }
 
 
@@ -24,6 +27,7 @@ public sealed class ArcherAI : BaseAI
 
     protected override IEnumerable<Spell> GetAttackSpells()
     {
+        yield return Spell.ElementalShot;
         yield return Spell.StraightShot;
         yield return Spell.DoubleShot;
         yield return Spell.ExplosiveTrap;
@@ -76,7 +80,9 @@ public sealed class ArcherAI : BaseAI
             }
         }
 
-        var magic = GetBestMagic(Spell.StraightShot, Spell.DoubleShot);
+        var magic = ElementCount > 0
+            ? GetBestMagic(Spell.ElementalShot, Spell.StraightShot, Spell.DoubleShot)
+            : GetBestMagic(Spell.StraightShot, Spell.DoubleShot);
         int attackRange = magic != null && magic.Range > 0 ? magic.Range : 7;
         if (map != null &&
             Functions.MaxDistance(current, monster.Location) <= attackRange &&
@@ -106,7 +112,9 @@ public sealed class ArcherAI : BaseAI
         if (!HasBowEquipped())
             return await base.MoveToTargetAsync(map, current, target, radius);
 
-        var magic = GetBestMagic(Spell.StraightShot, Spell.DoubleShot);
+        var magic = ElementCount > 0
+            ? GetBestMagic(Spell.ElementalShot, Spell.StraightShot, Spell.DoubleShot)
+            : GetBestMagic(Spell.StraightShot, Spell.DoubleShot);
         int attackRange = magic != null && magic.Range > 0 ? magic.Range : 7;
         const int retreatRange = 3;
 

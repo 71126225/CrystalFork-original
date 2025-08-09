@@ -71,6 +71,8 @@ public sealed partial class GameClient
     public List<Point>? CurrentPathPoints { get; internal set; }
     public bool RidingMount => _ridingMount;
     public bool Travelling { get; internal set; }
+    public bool HasElements => _hasElements;
+    public int ElementCount => _elementCount;
 
     private LightSetting _timeOfDay = LightSetting.Normal;
     private LightSetting _mapLight = LightSetting.Normal;
@@ -89,6 +91,10 @@ public sealed partial class GameClient
     private uint _gold;
     private readonly List<ClientMagic> _magics = new();
     private readonly Dictionary<BuffType, Stats> _buffs = new();
+
+    private bool _hasElements;
+    private int _elementLevel;
+    private int _elementCount;
 
     private int _maxBagWeight;
     private int _maxWearWeight;
@@ -449,7 +455,14 @@ public sealed partial class GameClient
         if (_inventory != null)
             count += _inventory.Where(i => i != null && MatchesDesiredItem(i, desired)).Sum(i => i!.Count);
         if (_equipment != null && desired.Count.HasValue)
+        {
             count += _equipment.Where(i => i != null && MatchesDesiredItem(i!, desired)).Sum(i => i!.Count);
+            var mountItem = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
+            if (mountItem != null)
+                count += mountItem.Slots
+                    .Where(i => i != null && MatchesDesiredItem(i!, desired))
+                    .Sum(i => i!.Count);
+        }
         return count;
     }
 

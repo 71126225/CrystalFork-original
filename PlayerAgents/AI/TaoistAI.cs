@@ -17,6 +17,7 @@ public sealed class TaoistAI : BaseAI
 
     private uint? _skeletonId;
     private bool _skeletonResting;
+    private bool _inventoryRefreshInProgress;
     private const string SkeletonName = "BoneFamiliar";
 
     private void RecordSpellTime()
@@ -347,16 +348,22 @@ public sealed class TaoistAI : BaseAI
 
     protected override async Task BeforeNpcInteractionAsync(Point location, uint npcId, NpcEntry? entry, NpcInteractionType interactionType)
     {
+        if (npcId == 0 && interactionType == NpcInteractionType.General)
+            _inventoryRefreshInProgress = true;
+
         await RestSkeletonAsync();
     }
 
     protected override async Task AfterNpcInteractionAsync(Point location, uint npcId, NpcEntry? entry, NpcInteractionType interactionType)
     {
-        if (_skeletonResting)
+        if (_skeletonResting && (!_inventoryRefreshInProgress || npcId == 0))
         {
             await Client.ChangePetModeAsync(PetMode.Both);
             _skeletonResting = false;
         }
+
+        if (npcId == 0 && interactionType == NpcInteractionType.General)
+            _inventoryRefreshInProgress = false;
     }
 
     protected override IReadOnlyList<DesiredItem> DesiredItems

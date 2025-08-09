@@ -969,7 +969,16 @@ public class BaseAI
             {
                 int remaining = desired.Count.Value;
                 if (equipment != null)
-                    remaining -= equipment.Count(i => i != null && MatchesDesiredItem(i!, desired));
+                {
+                    remaining -= equipment
+                        .Where(i => i != null && MatchesDesiredItem(i!, desired))
+                        .Sum(i => i!.Count);
+                    var mountItem = equipment.Count > (int)EquipmentSlot.Mount ? equipment[(int)EquipmentSlot.Mount] : null;
+                    if (mountItem != null)
+                        remaining -= mountItem.Slots
+                            .Where(i => i != null && MatchesDesiredItem(i!, desired))
+                            .Sum(i => i!.Count);
+                }
 
                 if (remaining > 0)
                 {
