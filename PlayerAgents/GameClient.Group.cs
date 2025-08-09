@@ -45,7 +45,7 @@ public sealed partial class GameClient
     public async Task LeaveGroupAsync()
     {
         if (_stream == null || !IsGrouped) return;
-        await SendAsync(new C.DelMember { Name = PlayerName });
+        await SetAllowGroupAsync(false);
     }
 
     public void LeaveGroup()
