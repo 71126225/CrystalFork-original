@@ -219,22 +219,25 @@ public class BaseAI
     protected virtual Stat[] DefensiveStats => Array.Empty<Stat>();
 
     private bool _needsMpPotions;
+    private bool _needsMountFood;
     private IReadOnlyList<DesiredItem>? _baseDesiredItems;
     protected virtual IReadOnlyList<DesiredItem> DesiredItems
     {
         get
         {
             bool needsMp = Client.HasSpellsThatRequireMP();
-            if (_baseDesiredItems == null || needsMp != _needsMpPotions)
+            bool needsFood = Client.MountNeedsFood();
+            if (_baseDesiredItems == null || needsMp != _needsMpPotions || needsFood != _needsMountFood)
             {
                 _needsMpPotions = needsMp;
-                _baseDesiredItems = BuildDesiredItems(needsMp);
+                _needsMountFood = needsFood;
+                _baseDesiredItems = BuildDesiredItems(needsMp, needsFood);
             }
             return _baseDesiredItems;
         }
     }
 
-    private IReadOnlyList<DesiredItem> BuildDesiredItems(bool needsMpPotions)
+    private IReadOnlyList<DesiredItem> BuildDesiredItems(bool needsMpPotions, bool needsMountFood)
     {
         double hpWeight = HpPotionWeightFraction;
         if (!needsMpPotions)
@@ -250,6 +253,8 @@ public class BaseAI
 
         list.Add(new DesiredItem(ItemType.Torch, count: 1));
         list.Add(new DesiredItem(ItemType.Scroll, shape: 1, count: 1));
+        if (needsMountFood)
+            list.Add(new DesiredItem(ItemType.Food, count: 1));
 
         return list.ToArray();
     }
@@ -521,6 +526,22 @@ public class BaseAI
                     TriggerInventoryRefresh();
             }
         }
+    }
+
+    private async Task TryFeedMountAsync()
+    {
+        if (!Client.MountNeedsFood()) return;
+
+        var food = Client.FindMountFood();
+        if (food != null)
+        {
+            await Client.UseItemAsync(food);
+            string name = food.Info?.FriendlyName ?? "mount food";
+            Client.Log($"Fed mount with {name}");
+            return;
+        }
+
+        UpdatePendingBuyTypes();
     }
 
     private TrackedObject? FindClosestTarget(Point current, out int bestDist)
@@ -916,6 +937,7 @@ public class BaseAI
                 if (!await OnBeginTravelToBestMapAsync())
                     return;
                 Client.Log($"Travelling to best map {_currentBestMap}");
+                await TryFeedMountAsync();
                 if (!await TravelToMapAsync(target))
                 {
                     _nextBestMapCheck = DateTime.UtcNow + TimeSpan.FromSeconds(10);
@@ -1079,6 +1101,8 @@ public class BaseAI
                 Client.UpdateAction("roaming...");
                 return NpcInteractionResult.PathFailed;
             }
+
+            await TryFeedMountAsync();
 
             Client.Log($"Moving to NPC {entry?.Name ?? npcId.ToString()} at {location.X},{location.Y}");
             bool reached = await Client.MoveWithinRangeAsync(location, npcId, NpcInteractionRange, interactionType, WalkDelay, entry?.MapFile);
@@ -1629,6 +1653,8 @@ public class BaseAI
             await TryUsePotionsAsync();
 
             await HandleInventoryAsync();
+
+            await TryFeedMountAsync();
 
             if (Client.GetCurrentBagWeight() > Client.GetMaxBagWeight() && Client.LastPickedItem != null)
             {

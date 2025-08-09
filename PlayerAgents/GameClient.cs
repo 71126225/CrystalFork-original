@@ -1623,6 +1623,26 @@ public sealed partial class GameClient
         return null;
     }
 
+    public UserItem? FindMountFood()
+    {
+        if (_inventory == null) return null;
+        foreach (var item in _inventory)
+        {
+            if (item?.Info == null) continue;
+            if (item.Info.Type == ItemType.Food) return item;
+        }
+        return null;
+    }
+
+    public bool MountNeedsFood()
+    {
+        if (_equipment == null) return false;
+        if (_equipment.Length <= (int)EquipmentSlot.Mount) return false;
+        var mount = _equipment[(int)EquipmentSlot.Mount];
+        if (mount?.Info == null || mount.MaxDura == 0) return false;
+        return _gold > 1_000_000 && mount.CurrentDura < mount.MaxDura * 0.5;
+    }
+
     public int GetPotionRestoreAmount(UserItem item, bool hpPotion)
     {
         int max = hpPotion ? GetMaxHP() : GetMaxMP();

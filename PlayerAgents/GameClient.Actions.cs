@@ -216,6 +216,10 @@ public sealed partial class GameClient
     public async Task EquipItemAsync(UserItem item, EquipmentSlot slot)
     {
         if (_stream == null) return;
+        bool remount = _ridingMount;
+        if (remount)
+            await EnsureUnmountedAsync();
+
         var equip = new C.EquipItem
         {
             Grid = MirGridType.Inventory,
@@ -223,13 +227,25 @@ public sealed partial class GameClient
             To = (int)slot
         };
         await SendAsync(equip);
+
+        if (remount)
+            await EnsureMountedAsync();
     }
 
     public async Task EquipMountItemAsync(UserItem item, MountSlot slot)
     {
         if (_stream == null || _equipment == null) return;
+        bool remount = _ridingMount;
+        if (remount)
+            await EnsureUnmountedAsync();
+
         var mount = _equipment.Length > (int)EquipmentSlot.Mount ? _equipment[(int)EquipmentSlot.Mount] : null;
-        if (mount == null) return;
+        if (mount == null)
+        {
+            if (remount)
+                await EnsureMountedAsync();
+            return;
+        }
         var equip = new C.EquipSlotItem
         {
             Grid = MirGridType.Inventory,
@@ -239,6 +255,9 @@ public sealed partial class GameClient
             ToUniqueID = mount.UniqueID
         };
         await SendAsync(equip);
+
+        if (remount)
+            await EnsureMountedAsync();
     }
 
     private int FindFreeInventorySlot() =>
@@ -247,10 +266,24 @@ public sealed partial class GameClient
     public async Task UnequipItemAsync(EquipmentSlot slot)
     {
         if (_stream == null || _equipment == null) return;
+        bool remount = _ridingMount;
+        if (remount)
+            await EnsureUnmountedAsync();
+
         var item = _equipment[(int)slot];
-        if (item == null) return;
+        if (item == null)
+        {
+            if (remount)
+                await EnsureMountedAsync();
+            return;
+        }
         int index = FindFreeInventorySlot();
-        if (index < 0) return;
+        if (index < 0)
+        {
+            if (remount)
+                await EnsureMountedAsync();
+            return;
+        }
         Log($"Unequipping {item.Info.Name}...");
         var remove = new C.RemoveItem
         {
@@ -260,6 +293,9 @@ public sealed partial class GameClient
         };
 
         await SendAsync(remove);
+
+        if (remount)
+            await EnsureMountedAsync();
     }
 
     public bool CanEquipItem(UserItem item, EquipmentSlot slot)
@@ -476,12 +512,19 @@ public sealed partial class GameClient
     public async Task UseItemAsync(UserItem item)
     {
         if (_stream == null) return;
+        bool remount = _ridingMount;
+        if (remount)
+            await EnsureUnmountedAsync();
+
         var use = new C.UseItem
         {
             UniqueID = item.UniqueID,
             Grid = MirGridType.Inventory
         };
         await SendAsync(use);
+
+        if (remount)
+            await EnsureMountedAsync();
     }
 
     public async Task DropItemAsync(UserItem item)
