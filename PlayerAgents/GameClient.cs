@@ -20,6 +20,8 @@ public sealed partial class GameClient
     private readonly MapExpRateMemoryBank _expRateMemory;
     private readonly MonsterMemoryBank _monsterMemory;
     private readonly SafezoneMemoryBank _safezoneMemory;
+    private readonly PlayerPersonalityMemoryBank _playerMemoryBank;
+    private readonly PlayerPersonality _personality;
     private readonly NavDataManager _navDataManager;
     private readonly IAgentLogger? _logger;
     private readonly CancellationTokenSource _cts = new();
@@ -1143,6 +1145,7 @@ public sealed partial class GameClient
     public MapExpRateMemoryBank ExpRateMemory => _expRateMemory;
     public MonsterMemoryBank MonsterMemory => _monsterMemory;
     public SafezoneMemoryBank SafezoneMemory => _safezoneMemory;
+    public PlayerPersonality Personality => _personality;
     public Func<UserItem, EquipmentSlot, int>? ItemScoreFunc { get; set; }
     public Func<IReadOnlyList<DesiredItem>>? DesiredItemsProvider { get; set; }
     public CancellationToken CancellationToken => _cts.Token;
@@ -1180,7 +1183,7 @@ public sealed partial class GameClient
         _lastStorageAction = action;
     }
 
-    public GameClient(Config config, NpcMemoryBank npcMemory, MapMovementMemoryBank movementMemory, MapExpRateMemoryBank expRateMemory, MonsterMemoryBank monsterMemory, SafezoneMemoryBank safezoneMemory, NavDataManager navDataManager, IAgentLogger? logger = null)
+    public GameClient(Config config, NpcMemoryBank npcMemory, MapMovementMemoryBank movementMemory, MapExpRateMemoryBank expRateMemory, MonsterMemoryBank monsterMemory, SafezoneMemoryBank safezoneMemory, PlayerPersonalityMemoryBank playerMemory, NavDataManager navDataManager, IAgentLogger? logger = null)
     {
         _config = config;
         _npcMemory = npcMemory;
@@ -1188,6 +1191,8 @@ public sealed partial class GameClient
         _expRateMemory = expRateMemory;
         _monsterMemory = monsterMemory;
         _safezoneMemory = safezoneMemory;
+        _playerMemoryBank = playerMemory;
+        _personality = playerMemory.Load(config.CharacterName);
         _navDataManager = navDataManager;
         _logger = logger;
     }

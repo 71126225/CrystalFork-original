@@ -160,6 +160,9 @@ internal class Program
             var memoryDir = Path.Combine(AppContext.BaseDirectory, "memory");
             Directory.CreateDirectory(memoryDir);
 
+            var playersDir = Path.Combine(memoryDir, "players");
+            var playerMemory = new PlayerPersonalityMemoryBank(playersDir);
+
             var npcFile = Path.Combine(memoryDir, "npc_memory.json");
             var npcMemory = new NpcMemoryBank(npcFile);
 
@@ -258,7 +261,7 @@ internal class Program
                     CharacterName = agent.CharacterName
                 };
 
-                var client = new GameClient(agentCfg, npcMemory, movementMemory, expRateMemory, monsterMemory, safezoneMemory, navManager, logger);
+                var client = new GameClient(agentCfg, npcMemory, movementMemory, expRateMemory, monsterMemory, safezoneMemory, playerMemory, navManager, logger);
                 client.IsolateCommandReceived += () => _ = IsolateAsync(client);
                 lock (clientLock) runningClients.Add(client);
 
