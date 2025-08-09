@@ -29,6 +29,15 @@ public sealed class AssassinAI : BaseAI
             return;
         }
 
+        if (monster.AI == 3)
+        {
+            if (Client.DoubleSlash)
+                await Client.ToggleSpellAsync(Spell.DoubleSlash, false);
+
+            await AttackWithSpellAsync(current, monster, Spell.None);
+            return;
+        }
+
         if (Client.HasMagic(Spell.DoubleSlash))
         {
             if (!Client.DoubleSlash)
