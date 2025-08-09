@@ -164,6 +164,29 @@ public sealed class MonsterMemoryBank : MemoryBankBase<MonsterEntry>
             Save();
     }
 
+    public MonsterEntry? GetStrongestTameable(int level)
+    {
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            return _entries
+                .Where(e => e.CanTame && e.RepulseAt > 0 && e.RepulseAt <= level)
+                .OrderByDescending(e => e.Damage)
+                .FirstOrDefault();
+        }
+    }
+
+    public IEnumerable<string> GetMonsterMaps(string monsterName)
+    {
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            return _lookup.TryGetValue(monsterName, out var entry)
+                ? entry.SeenOnMaps.ToList()
+                : Enumerable.Empty<string>();
+        }
+    }
+
     public int GetTameAttempts(string monsterName)
     {
         if (GameClient.IsTamedName(monsterName)) return 0;

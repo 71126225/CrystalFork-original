@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
+using System.IO;
 using PlayerAgents.Map;
 
 public sealed class WizardAI : BaseAI
@@ -11,6 +12,12 @@ public sealed class WizardAI : BaseAI
     private DateTime _nextSpellTime = DateTime.MinValue;
     private Point? _cachedCastSpot;
     private DateTime _nextCastSpotCheck = DateTime.MinValue;
+    private bool _taming;
+    private string? _tameMonster;
+    private int _tamedCount;
+    private int _tameLimit;
+    private readonly HashSet<uint> _pendingTames = new();
+    private bool _petsResting;
 
     protected override bool ShouldIgnoreDistantTarget(TrackedObject target, int distance)
     {
@@ -24,7 +31,11 @@ public sealed class WizardAI : BaseAI
         return distance > 20 && !longRange;
     }
 
-    public WizardAI(GameClient client) : base(client) { }
+    public WizardAI(GameClient client) : base(client)
+    {
+        client.MonsterColourChanged += OnMonsterColourChanged;
+        client.MonsterNameChanged += OnMonsterNameChanged;
+    }
 
     protected override double HpPotionWeightFraction => 0.10;
     protected override double MpPotionWeightFraction => 0.50;
@@ -40,15 +51,116 @@ public sealed class WizardAI : BaseAI
         yield return Spell.HellFire;
     }
 
+    private bool StartTamingRun()
+    {
+        var entry = Client.MonsterMemory.GetStrongestTameable(Client.Level);
+        if (entry == null) return false;
+        var electric = Client.Magics.FirstOrDefault(m => m.Spell == Spell.ElectricShock);
+        if (electric == null) return false;
+        _tameLimit = electric.Level + (Globals.MaxPets - 3);
+        if (_tameLimit <= 0) return false;
+        _taming = true;
+        _tameMonster = entry.Name;
+        _tamedCount = 0;
+        _pendingTames.Clear();
+        return true;
+    }
+
+    private string? GetClosestTameMap()
+    {
+        if (_tameMonster == null) return null;
+        string? best = null;
+        int bestLen = int.MaxValue;
+        foreach (var map in Client.MonsterMemory.GetMonsterMaps(_tameMonster))
+        {
+            var path = MovementHelper.FindTravelPath(Client, Path.Combine(MapManager.MapDirectory, map + ".map"));
+            if (path == null) continue;
+            if (path.Count < bestLen)
+            {
+                best = map;
+                bestLen = path.Count;
+            }
+        }
+        return best;
+    }
+
+    private async Task<bool> TravelToTameMapAsync()
+    {
+        var map = GetClosestTameMap();
+        if (map == null) return false;
+        SetBestMap(map);
+        var dest = Path.Combine(MapManager.MapDirectory, map + ".map");
+        return await TravelToMapAsync(dest);
+    }
+
+    protected override async Task<bool> OnBeginTravelToBestMapAsync()
+    {
+        if (_taming)
+        {
+            if (!await TravelToTameMapAsync())
+            {
+                _taming = false;
+                _tameMonster = null;
+            }
+            return false;
+        }
+
+        bool hasTames = Client.TrackedObjects.Values.Any(o => o.Type == ObjectType.Monster && o.Tamed);
+        if (!hasTames && Random.Next(20) == 0 && StartTamingRun())
+        {
+            if (await TravelToTameMapAsync())
+                return false;
+            _taming = false;
+            _tameMonster = null;
+        }
+        return true;
+    }
+
+    protected override void OnTameCommand()
+    {
+        bool hasTames = Client.TrackedObjects.Values.Any(o => o.Type == ObjectType.Monster && o.Tamed);
+        if (hasTames) return;
+
+        if (!StartTamingRun()) return;
+
+        _ = Task.Run(async () =>
+        {
+            if (!await TravelToTameMapAsync())
+            {
+                _taming = false;
+                _tameMonster = null;
+            }
+        });
+    }
+
+    protected override string GetMonsterTargetAction(TrackedObject monster)
+    {
+        if (_taming && _tameMonster != null &&
+            string.Equals(monster.Name, _tameMonster, StringComparison.OrdinalIgnoreCase))
+            return "taming...";
+        return base.GetMonsterTargetAction(monster);
+    }
+
 
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
         if (monster.Dead || monster.Hidden) return;
 
+        if (_taming && _tameMonster != null && _tamedCount < _tameLimit &&
+            string.Equals(monster.Name, _tameMonster, StringComparison.OrdinalIgnoreCase))
+        {
+            var eshock = Client.Magics.FirstOrDefault(m => m.Spell == Spell.ElectricShock);
+            if (eshock != null)
+            {
+                await TryTameAsync(monster);
+            }
+            return;
+        }
+
         var map = Client.CurrentMap;
 
         var electric = Client.Magics.FirstOrDefault(m => m.Spell == Spell.ElectricShock);
-        if (electric != null)
+        if (electric != null && !_taming)
         {
             int repulseAt = Client.MonsterMemory.GetRepulseAt(monster.Name);
             if (repulseAt != 0 && Client.Level >= repulseAt && !Client.MonsterMemory.GetCanTame(monster.Name))
@@ -161,12 +273,43 @@ public sealed class WizardAI : BaseAI
 
     private async Task TryTameAsync(TrackedObject monster)
     {
+        _pendingTames.Add(monster.Id);
         Client.SetTameTarget(monster.Id);
         var loc = Client.CurrentLocation;
         var dir = Functions.DirectionFromPoint(loc, monster.Location);
         await Client.CastMagicAsync(Spell.ElectricShock, dir, monster.Location, monster.Id);
         RecordAttackTime();
         await Task.Delay(AttackDelay);
+    }
+
+    private void OnMonsterColourChanged(uint id, Color colour)
+    {
+        if (_pendingTames.Contains(id) && Client.TrackedObjects.TryGetValue(id, out var obj) && obj.Tamed)
+        {
+            _pendingTames.Remove(id);
+            _tamedCount++;
+            if (_tamedCount >= _tameLimit)
+            {
+                _taming = false;
+                _tameMonster = null;
+                _pendingTames.Clear();
+            }
+        }
+    }
+
+    private void OnMonsterNameChanged(uint id, string name)
+    {
+        if (_pendingTames.Contains(id) && GameClient.IsTamedName(name))
+        {
+            _pendingTames.Remove(id);
+            _tamedCount++;
+            if (_tamedCount >= _tameLimit)
+            {
+                _taming = false;
+                _tameMonster = null;
+                _pendingTames.Clear();
+            }
+        }
     }
 
     protected override async Task<bool> MoveToTargetAsync(MapData map, Point current, TrackedObject target, int radius = 1)
@@ -388,6 +531,79 @@ public sealed class WizardAI : BaseAI
         _cachedCastSpot = current;
         _nextCastSpotCheck = DateTime.UtcNow + TimeSpan.FromSeconds(2);
         return current;
+    }
+
+    private bool HasNearbyPet(Point loc)
+    {
+        foreach (var o in Client.TrackedObjects.Values)
+        {
+            if (o.Dead || o.Hidden) continue;
+            if (o.Type != ObjectType.Monster || !o.Tamed) continue;
+            if (Functions.MaxDistance(o.Location, loc) <= 1)
+                return true;
+        }
+        return false;
+    }
+
+    private static int DistanceToZone(Point current, SafezoneEntry zone)
+    {
+        int dx = Math.Abs(current.X - zone.X) - zone.Size;
+        if (dx < 0) dx = 0;
+        int dy = Math.Abs(current.Y - zone.Y) - zone.Size;
+        if (dy < 0) dy = 0;
+        return Math.Max(dx, dy);
+    }
+
+    private async Task RestPetsAsync()
+    {
+        if (!Client.TrackedObjects.Values.Any(o => o.Type == ObjectType.Monster && o.Tamed)) return;
+        if (string.IsNullOrEmpty(Client.CurrentMapFile)) return;
+        var map = Client.CurrentMap;
+        if (map == null) return;
+        var mapName = Path.GetFileNameWithoutExtension(Client.CurrentMapFile);
+
+        var current = Client.CurrentLocation;
+        var zones = Client.SafezoneMemory.GetAll()
+            .Where(z => z.Map.Equals(mapName, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(z => DistanceToZone(current, z));
+
+        foreach (var zone in zones)
+        {
+            var candidates = new List<Point>();
+            for (int x = zone.X - zone.Size; x <= zone.X + zone.Size; x++)
+            {
+                for (int y = zone.Y - zone.Size; y <= zone.Y + zone.Size; y++)
+                {
+                    var loc = new Point(x, y);
+                    if (!map.IsWalkable(loc.X, loc.Y)) continue;
+                    if (HasNearbyPet(loc)) continue;
+                    candidates.Add(loc);
+                }
+            }
+
+            foreach (var loc in candidates.OrderBy(p => Functions.MaxDistance(current, p)))
+            {
+                bool reached = await Client.MoveWithinRangeAsync(loc, 0, 0, NpcInteractionType.General, WalkDelay, null);
+                if (!reached) continue;
+                await Client.ChangePetModeAsync(PetMode.None);
+                _petsResting = true;
+                return;
+            }
+        }
+    }
+
+    protected override async Task BeforeNpcInteractionAsync(Point location, uint npcId, NpcEntry? entry, NpcInteractionType interactionType)
+    {
+        await RestPetsAsync();
+    }
+
+    protected override async Task AfterNpcInteractionAsync(Point location, uint npcId, NpcEntry? entry, NpcInteractionType interactionType)
+    {
+        if (_petsResting)
+        {
+            await Client.ChangePetModeAsync(PetMode.Both);
+            _petsResting = false;
+        }
     }
 
 }

@@ -84,6 +84,10 @@ public sealed partial class GameClient
                 : string.Join(" -> ", points.Select(p => $"{p.X},{p.Y}"));
             FireAndForget(SendWhisperAsync(sender, response));
         }
+        else if (msg.Equals("tame", StringComparison.OrdinalIgnoreCase))
+        {
+            WhisperCommandReceived?.Invoke("tame");
+        }
         else if (msg.Equals("sell", StringComparison.OrdinalIgnoreCase))
         {
             WhisperCommandReceived?.Invoke("sell");

@@ -83,6 +83,10 @@ public class BaseAI
         {
             TriggerInventoryRefresh();
         }
+        else if (command.Equals("tame", StringComparison.OrdinalIgnoreCase))
+        {
+            OnTameCommand();
+        }
         else if (command.StartsWith("bestmap", StringComparison.OrdinalIgnoreCase))
         {
             var parts = command.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
@@ -548,6 +552,7 @@ public class BaseAI
                 if (obj.Tamed) continue;
                 if (string.IsNullOrEmpty(obj.Name)) continue;
                 if (IsDangerousMonster(obj)) continue;
+                if (ShouldIgnoreMonster(obj)) continue;
                 if (IgnoredAIs.Contains(obj.AI)) continue;
                 if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != Client.ObjectId)
                     continue;
@@ -698,6 +703,30 @@ public class BaseAI
         return distance > 20;
     }
 
+    protected virtual bool ShouldIgnoreMonster(TrackedObject monster)
+    {
+        return false;
+    }
+
+    protected virtual Task<bool> OnBeginTravelToBestMapAsync()
+    {
+        return Task.FromResult(true);
+    }
+
+    protected virtual void OnTameCommand()
+    {
+    }
+
+    protected virtual string GetMonsterTargetAction(TrackedObject monster)
+    {
+        return $"attacking {monster.Name}";
+    }
+
+    protected void SetBestMap(string? map)
+    {
+        _currentBestMap = map;
+    }
+
     private bool IsDangerousMonster(TrackedObject monster)
     {
         if (monster.Tamed)
@@ -747,7 +776,7 @@ public class BaseAI
         return false;
     }
 
-    private async Task<bool> TravelToMapAsync(string destMapFile)
+    protected async Task<bool> TravelToMapAsync(string destMapFile)
     {
         if (DateTime.UtcNow < _travelPauseUntil)
             return false;
@@ -884,6 +913,8 @@ public class BaseAI
         {
             if (_travelPath == null)
             {
+                if (!await OnBeginTravelToBestMapAsync())
+                    return;
                 Client.Log($"Travelling to best map {_currentBestMap}");
                 if (!await TravelToMapAsync(target))
                 {
@@ -1878,7 +1909,7 @@ public class BaseAI
             }
             else if (_currentTarget != null && _currentTarget.Type == ObjectType.Monster)
             {
-                Client.UpdateAction($"attacking {_currentTarget.Name}");
+                Client.UpdateAction(GetMonsterTargetAction(_currentTarget));
             }
             else
             {
