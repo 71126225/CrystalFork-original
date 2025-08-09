@@ -119,7 +119,7 @@ public class BaseAI
 
     private void OnMonsterHidden(uint id)
     {
-        _monsterIgnoreTimes[id] = DateTime.UtcNow + MonsterIgnoreDelay;
+        IgnoreMonster(id);
         if (_currentTarget != null && _currentTarget.Id == id)
         {
             _currentTarget = null;
@@ -177,6 +177,11 @@ public class BaseAI
             {
                 _ = Client.InviteToGroupAsync(sender);
             }
+        }
+        else if (message.Equals("groupleader", StringComparison.OrdinalIgnoreCase))
+        {
+            var leader = Client.GroupLeader ?? "no leader";
+            _ = Client.SendWhisperAsync(sender, leader);
         }
     }
 
@@ -343,6 +348,16 @@ public class BaseAI
     private bool _refreshInventory;
     private Task? _inventoryTeleportTask;
     private HashSet<ItemType> _pendingBuyTypes = new();
+
+    protected void IgnoreMonster(uint id, TimeSpan? duration = null)
+    {
+        _monsterIgnoreTimes[id] = DateTime.UtcNow + (duration ?? MonsterIgnoreDelay);
+        if (_currentTarget?.Id == id)
+        {
+            _currentTarget = null;
+            _nextTargetSwitchTime = DateTime.MinValue;
+        }
+    }
 
     protected virtual int GetItemScore(UserItem item, EquipmentSlot slot)
     {
@@ -750,9 +765,7 @@ public class BaseAI
 
         if (ShouldIgnoreDistantTarget(target, distance))
         {
-            _monsterIgnoreTimes[target.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
-            _currentTarget = null;
-            _nextTargetSwitchTime = DateTime.MinValue;
+            IgnoreMonster(target.Id);
             return true;
         }
 
@@ -762,9 +775,7 @@ public class BaseAI
             bool moved = path.Count > 0 && await MoveAlongPathAsync(path, target.Location);
             if (!moved)
             {
-                _monsterIgnoreTimes[target.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
-                _currentTarget = null;
-                _nextTargetSwitchTime = DateTime.MinValue;
+                IgnoreMonster(target.Id);
             }
             return true;
         }
@@ -871,8 +882,7 @@ public class BaseAI
             int dist = Functions.MaxDistance(current, obj.Location);
             if (dist <= DangerousMonsterRange)
             {
-                _monsterIgnoreTimes[obj.Id] = DateTime.UtcNow + MonsterIgnoreDelay;
-                _currentTarget = null;
+                IgnoreMonster(obj.Id);
                 bool moved = await RetreatFromMonsterAsync(map, current, obj);
                 return moved;
             }

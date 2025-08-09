@@ -310,11 +310,22 @@ public sealed class TaoistAI : BaseAI
         int avgAC = (Client.GetStatTotal(Stat.MinAC) + Client.GetStatTotal(Stat.MaxAC)) / 2;
         bool highDamage = Client.MonsterMemory.GetDamage(target.Name) - avgAC > Client.GetMaxHP() / 5;
         bool requiresLine = CanFlySpells.List.Contains(Spell.SoulFireBall);
-        bool canCast = dist <= attackRange && (!requiresLine || CanCast(map, current, target.Location));
+        bool inRange = dist <= attackRange;
+
+        if (requiresLine && inRange && !CanCast(map, current, target.Location))
+        {
+            var path = await FindBufferedPathAsync(map, current, target.Location, 3);
+            if (path.Count > 0)
+                return await MovementHelper.MoveAlongPathAsync(Client, path, path[^1]);
+            IgnoreMonster(target.Id, TimeSpan.FromSeconds(20));
+            return true;
+        }
+
+        bool canCast = inRange && (!requiresLine || CanCast(map, current, target.Location));
 
         if (highDamage)
         {
-            if (!canCast)
+            if (!inRange)
             {
                 var path = await FindBufferedPathAsync(map, current, target.Location, 3);
                 if (path.Count > 0)
