@@ -163,6 +163,7 @@ namespace Server.MirNetwork
             {
                 _dataCounterReset = Envir.Now.AddSeconds(5);
                 _dataCounter = 0;
+                _dataCounter = 0;
             }
 
             _dataCounter++;

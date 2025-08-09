@@ -18,6 +18,8 @@ public sealed class TrackedObject
     public PoisonType Poison { get; set; }
     public Spell Spell { get; }
 
+    public byte? HealthPercent { get; set; }
+
     // Records which player this monster is currently engaged with and when that
     // engagement started. Null if not engaged.
     public uint? EngagedWith { get; set; }

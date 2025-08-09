@@ -14,6 +14,7 @@ public sealed class TaoistAI : BaseAI
     private DateTime _nextSpellTime = DateTime.MinValue;
     private readonly Dictionary<uint, DateTime> _redPoisoned = new();
     private readonly Dictionary<uint, DateTime> _greenPoisoned = new();
+    private readonly Dictionary<uint, DateTime> _lastSoulShield = new();
 
     private uint? _skeletonId;
     private bool _skeletonResting;
@@ -189,9 +190,49 @@ public sealed class TaoistAI : BaseAI
         _skeletonResting = false;
     }
 
+    private async Task<bool> SupportGroupAsync(Point current)
+    {
+        if (!Client.IsGrouped) return false;
+
+        var heal = GetMagic(Spell.Healing);
+        var soulShield = GetMagic(Spell.SoulShield);
+
+        foreach (var obj in Client.TrackedObjects.Values)
+        {
+            if (!Client.IsGroupMember(obj.Id) || obj.Id == Client.ObjectId || obj.Dead || obj.Hidden) continue;
+            if (obj.HealthPercent.HasValue && heal != null && DateTime.UtcNow >= _nextSpellTime)
+            {
+                if (obj.HealthPercent.Value <= 60)
+                {
+                    var dir = Functions.DirectionFromPoint(current, obj.Location);
+                    await Client.CastMagicAsync(Spell.Healing, dir, obj.Location, obj.Id);
+                    RecordSpellTime();
+                    return true;
+                }
+            }
+
+            if (soulShield != null && DateTime.UtcNow >= _nextSpellTime)
+            {
+                if (!_lastSoulShield.TryGetValue(obj.Id, out var last) || DateTime.UtcNow - last > TimeSpan.FromMinutes(2))
+                {
+                    var dir = Functions.DirectionFromPoint(current, obj.Location);
+                    await Client.CastMagicAsync(Spell.SoulShield, dir, obj.Location, obj.Id);
+                    RecordSpellTime();
+                    _lastSoulShield[obj.Id] = DateTime.UtcNow;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     protected override async Task AttackMonsterAsync(TrackedObject monster, Point current)
     {
         if (monster.Dead || monster.Hidden) return;
+
+        if (await SupportGroupAsync(current))
+            return;
 
         await EnsureSkeletonAsync(current);
 

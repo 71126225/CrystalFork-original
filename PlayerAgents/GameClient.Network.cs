@@ -439,6 +439,10 @@ public sealed partial class GameClient
                     _lastAttackTarget = null;
                 }
                 break;
+            case S.ObjectHealth oh:
+                if (_trackedObjects.TryGetValue(oh.ObjectID, out var objH))
+                    objH.HealthPercent = oh.Percent;
+                break;
             case S.Death death:
                 Log("I have died.");
                 _dead = true;
