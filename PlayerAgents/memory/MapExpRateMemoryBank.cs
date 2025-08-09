@@ -74,4 +74,13 @@ public sealed class MapExpRateMemoryBank : MemoryBankBase<MapExpRateEntry>
             return candidates[Random.Shared.Next(candidates.Count)];
         }
     }
+
+    public bool HasRates(MirClass playerClass, ushort level)
+    {
+        lock (_lock)
+        {
+            ReloadIfUpdated();
+            return _entries.Any(e => e.Class == playerClass && e.Level == level && e.ExpPerHour > 0);
+        }
+    }
 }

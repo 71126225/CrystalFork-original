@@ -21,6 +21,7 @@ public class BaseAI
     private List<Point>? _lostTargetPath;
     private DateTime _nextPathFindTime = DateTime.MinValue;
     private MirDirection? _lastRoamDirection;
+    private readonly Dictionary<string, DateTime> _groupRequestTimes = new();
 
 
     protected virtual TimeSpan TargetSwitchInterval => TimeSpan.FromSeconds(3);
@@ -54,6 +55,7 @@ public class BaseAI
         Client.MonsterDied += OnMonsterDied;
         Client.PlayerDied += OnPlayerDied;
         Client.NpcTravelPaused += OnNpcTravelPaused;
+        Client.WhisperReceived += OnWhisperReceived;
 
         Client.ScanInventoryForAutoStore();
     }
@@ -146,6 +148,7 @@ public class BaseAI
     {
         _currentBestMap = null;
         _nextBestMapCheck = DateTime.UtcNow;
+        Client.LeaveGroup();
     }
 
     private void OnNpcTravelPaused()
@@ -155,6 +158,28 @@ public class BaseAI
         Client.UpdateAction("roaming...");
     }
 
+    private void OnWhisperReceived(string sender, string message)
+    {
+        if (Client.Travelling && (_travelDestinationMap != null || Client.CurrentNpcInteraction != NpcInteractionType.General))
+            return;
+
+        if (message.Equals("group?", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Client.IsGrouped && Client.AllowGroup && Client.GroupMembers.Count < Client.Personality.MaxGroupCount)
+                _ = Client.SendWhisperAsync(sender, "yes");
+        }
+        else if (message.Equals("yes", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_groupRequestTimes.TryGetValue(sender, out var time) &&
+                DateTime.UtcNow - time < TimeSpan.FromMinutes(10) &&
+                Client.AllowGroup && Client.GroupMembers.Count < Client.Personality.MaxGroupCount &&
+                (Client.GroupMembers.Count == 0 || Client.IsGroupLeader))
+            {
+                _ = Client.InviteToGroupAsync(sender);
+            }
+        }
+    }
+
     private void TriggerInventoryRefresh()
     {
         if (_refreshInventory) return;
@@ -162,10 +187,38 @@ public class BaseAI
         _inventoryTeleportTask = UseInventoryTownTeleportAsync();
     }
 
+    private async Task HandleGroupingAsync()
+    {
+        if (Client.Travelling && (_travelDestinationMap != null || Client.CurrentNpcInteraction != NpcInteractionType.General))
+            return;
+
+        foreach (var kv in _groupRequestTimes.ToList())
+            if (DateTime.UtcNow - kv.Value >= TimeSpan.FromMinutes(10))
+                _groupRequestTimes.Remove(kv.Key);
+
+        if (!Client.AllowGroup) return;
+        if (Client.GroupMembers.Count >= Client.Personality.MaxGroupCount) return;
+        if (Client.IsGrouped && !Client.IsGroupLeader) return;
+
+        foreach (var player in Client.TrackedObjects.Values.Where(o => o.Type == ObjectType.Player && o.Id != Client.ObjectId))
+        {
+            if (Client.GroupMembers.Contains(player.Name)) continue;
+            if (_groupRequestTimes.TryGetValue(player.Name, out var t) && DateTime.UtcNow - t < TimeSpan.FromMinutes(10))
+                continue;
+
+            bool killing = Client.TrackedObjects.Values.Any(m => m.Type == ObjectType.Monster &&
+                m.EngagedWith == player.Id && DateTime.UtcNow - m.LastEngagedTime < TimeSpan.FromSeconds(5));
+            if (!killing) continue;
+
+            await Client.SendWhisperAsync(player.Name, "group?");
+            _groupRequestTimes[player.Name] = DateTime.UtcNow;
+        }
+    }
+
     private async Task UseInventoryTownTeleportAsync()
     {
         if (DateTime.UtcNow < _nextInventoryTeleportTime) return;
-
+        Client.LeaveGroup();
         var teleport = Client.FindTownTeleport();
         if (teleport == null) return;
 
@@ -560,8 +613,20 @@ public class BaseAI
 
         TrackedObject? closestMonster = null;
         int monsterDist = int.MaxValue;
+        TrackedObject? groupMonster = null;
+        int groupDist = int.MaxValue;
         TrackedObject? closestItem = null;
         int itemDist = int.MaxValue;
+
+        uint? leaderId = null;
+        if (Client.GroupLeader != null)
+        {
+            var leaderName = Client.GroupLeader;
+            var leader = Client.TrackedObjects.Values
+                .Where(o => o.Type == ObjectType.Player && o.Name.Equals(leaderName, StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault();
+            leaderId = leader?.Id;
+        }
 
         foreach (var obj in Client.TrackedObjects.Values)
         {
@@ -575,9 +640,21 @@ public class BaseAI
                 if (IsDangerousMonster(obj)) continue;
                 if (ShouldIgnoreMonster(obj)) continue;
                 if (IgnoredAIs.Contains(obj.AI)) continue;
-                if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != Client.ObjectId)
-                    continue;
                 int dist = Functions.MaxDistance(current, obj.Location);
+                if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != Client.ObjectId)
+                {
+                    bool engagedByGroup = Client.IsGroupMember(obj.EngagedWith.Value);
+                    if ((Client.IsGroupLeader && engagedByGroup) ||
+                        (!Client.IsGroupLeader && leaderId.HasValue && obj.EngagedWith.Value == leaderId.Value))
+                    {
+                        if (dist < groupDist)
+                        {
+                            groupDist = dist;
+                            groupMonster = obj;
+                        }
+                    }
+                    continue;
+                }
                 if (dist < monsterDist)
                 {
                     monsterDist = dist;
@@ -595,6 +672,12 @@ public class BaseAI
                     closestItem = obj;
                 }
             }
+        }
+
+        if (groupMonster != null)
+        {
+            bestDist = groupDist;
+            return groupMonster;
         }
 
         // Prioritize adjacent monsters
@@ -1585,6 +1668,7 @@ public class BaseAI
         _stationarySince = DateTime.UtcNow;
         _lastMoveOrAttackTime = DateTime.UtcNow;
         _buyAttempted = false;
+        await Client.SetAllowGroupAsync(true);
         while (!Client.Disconnected)
         {
             Client.StartCycle();
@@ -1616,7 +1700,8 @@ public class BaseAI
             if (!_refreshInventory && NeedsImmediateSellOrRepair())
                 TriggerInventoryRefresh();
 
-            Client.ProcessMapExpRateInterval();
+            if (!Client.IsGrouped)
+                Client.ProcessMapExpRateInterval();
             if (_refreshInventory)
             {
                 var cantAfford = await SellRepairAndBuyAsync();
@@ -1627,6 +1712,7 @@ public class BaseAI
             {
                 await HandleBuyingItemsAsync();
             }
+            await HandleGroupingAsync();
             await ProcessBestMapAsync();
             UpdateTravelDestination();
             bool traveling = _travelPath != null && DateTime.UtcNow >= _travelPauseUntil;
@@ -1699,6 +1785,19 @@ public class BaseAI
             }
 
             current = Client.CurrentLocation;
+            if (Client.GroupLeader != null && !Client.IsGroupLeader)
+            {
+                var leaderName = Client.GroupLeader;
+                var leader = Client.TrackedObjects.Values
+                    .Where(o => o.Type == ObjectType.Player && o.Name.Equals(leaderName, StringComparison.OrdinalIgnoreCase))
+                    .FirstOrDefault();
+                if (leader != null && !Functions.InRange(current, leader.Location, 7))
+                {
+                    await MoveToTargetAsync(map, current, leader, 7);
+                    await Task.Delay(WalkDelay);
+                    continue;
+                }
+            }
             if (await AvoidDangerousMonstersAsync(map, current))
             {
                 await Task.Delay(WalkDelay);

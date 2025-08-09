@@ -1199,6 +1199,8 @@ public sealed partial class GameClient
 
     private void StartMapExpTracking(string mapFile)
     {
+        if (IsGrouped)
+            return;
         // resume if we previously paused on this map at this level
         if (_hasPausedMapSession && _pausedMapFile == mapFile && _pausedMapLevel == _level)
         {
@@ -1256,7 +1258,7 @@ public sealed partial class GameClient
 
     private void FinalizePausedMapSession()
     {
-        if (!_hasPausedMapSession || string.IsNullOrEmpty(_pausedMapFile) || _pausedMapClass == null)
+        if (!_hasPausedMapSession || string.IsNullOrEmpty(_pausedMapFile) || _pausedMapClass == null || IsGrouped)
             return;
 
         if (_pausedMapElapsed >= TimeSpan.FromMinutes(15))
@@ -1277,7 +1279,7 @@ public sealed partial class GameClient
 
     private void FinalizeMapExpRate()
     {
-        if (string.IsNullOrEmpty(_trackedMapFile)) return;
+        if (string.IsNullOrEmpty(_trackedMapFile) || IsGrouped) return;
 
         TimeSpan elapsed = _mapElapsedBeforePause;
         if (!_mapExpPaused && _mapStartTime != DateTime.MinValue)
@@ -1298,7 +1300,7 @@ public sealed partial class GameClient
 
     public void ProcessMapExpRateInterval()
     {
-        if (string.IsNullOrEmpty(_trackedMapFile)) return;
+        if (string.IsNullOrEmpty(_trackedMapFile) || IsGrouped) return;
         if (_mapExpPaused || _mapStartTime == DateTime.MinValue) return;
 
         var elapsed = _mapElapsedBeforePause + (DateTime.UtcNow - _mapStartTime);

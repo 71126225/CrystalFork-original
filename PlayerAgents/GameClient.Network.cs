@@ -158,6 +158,34 @@ public sealed partial class GameClient
                 if (Travelling)
                     FireAndForget(EnsureMountedAsync());
                 break;
+            case S.SwitchGroup sg:
+                _allowGroup = sg.AllowGroup;
+                break;
+            case S.DeleteGroup:
+                _groupMembers.Clear();
+                UpdateGroupLeader();
+                StartMapExpTracking(_currentMapFile);
+                break;
+            case S.DeleteMember dm:
+                _groupMembers.Remove(dm.Name);
+                UpdateGroupLeader();
+                if (_groupMembers.Count == 0)
+                    StartMapExpTracking(_currentMapFile);
+                break;
+            case S.AddMember am:
+                if (!_groupMembers.Contains(am.Name))
+                    _groupMembers.Add(am.Name);
+                UpdateGroupLeader();
+                if (am.Name.Equals(PlayerName, StringComparison.OrdinalIgnoreCase))
+                    PauseMapExpTracking();
+                break;
+            case S.GroupInvite gi:
+                bool hasExpRates = _playerClass != null && _expRateMemory.HasRates(_playerClass.Value, _level);
+                if (!IsGrouped && _allowGroup && _groupMembers.Count < _personality.MaxGroupCount && !Travelling && CurrentNpcInteraction == NpcInteractionType.General && hasExpRates)
+                    FireAndForget(SendAsync(new C.GroupInvite { AcceptInvite = true }));
+                else
+                    FireAndForget(SendAsync(new C.GroupInvite { AcceptInvite = false }));
+                break;
             case S.MapChanged mc:
                 if (!string.IsNullOrEmpty(_currentMapFile) && !_dead && _pendingMovementAction.Count > 0)
                 {
@@ -601,7 +629,7 @@ public sealed partial class GameClient
                     PickUpFailed?.Invoke();
                 }
                 if (chat.Type == ChatType.WhisperIn)
-                    HandleDebugCommand(chat.Message);
+                    HandleWhisper(chat.Message);
                 break;
             case S.ObjectChat oc:
                 HandleTradeFailChat(oc.Text);
@@ -613,7 +641,7 @@ public sealed partial class GameClient
                     PickUpFailed?.Invoke();
                 }
                 if (oc.Type == ChatType.WhisperIn)
-                    HandleDebugCommand(oc.Text);
+                    HandleWhisper(oc.Text);
                 break;
             case S.LoseGold lg:
                 if (lg.Gold > _gold) _gold = 0;
@@ -1063,6 +1091,14 @@ public sealed partial class GameClient
             default:
                 break;
         }
+    }
+
+    private void HandleWhisper(string text)
+    {
+        HandleDebugCommand(text);
+        var parts = text.Split(new[] {"=>"}, 2, StringSplitOptions.None);
+        if (parts.Length != 2) return;
+        WhisperReceived?.Invoke(parts[0], parts[1].Trim());
     }
 
     private async Task LoadMapAsync()
