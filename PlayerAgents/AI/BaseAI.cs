@@ -633,16 +633,6 @@ public class BaseAI
         TrackedObject? closestItem = null;
         int itemDist = int.MaxValue;
 
-        uint? leaderId = null;
-        if (Client.GroupLeader != null)
-        {
-            var leaderName = Client.GroupLeader;
-            var leader = Client.TrackedObjects.Values
-                .Where(o => o.Type == ObjectType.Player && o.Name.Equals(leaderName, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault();
-            leaderId = leader?.Id;
-        }
-
         foreach (var obj in Client.TrackedObjects.Values)
         {
             if (obj.Type == ObjectType.Monster)
@@ -658,9 +648,7 @@ public class BaseAI
                 int dist = Functions.MaxDistance(current, obj.Location);
                 if (obj.EngagedWith.HasValue && obj.EngagedWith.Value != Client.ObjectId)
                 {
-                    bool engagedByGroup = Client.IsGroupMember(obj.EngagedWith.Value);
-                    if ((Client.IsGroupLeader && engagedByGroup) ||
-                        (!Client.IsGroupLeader && leaderId.HasValue && obj.EngagedWith.Value == leaderId.Value))
+                    if (Client.IsGrouped && Client.IsGroupMember(obj.EngagedWith.Value))
                     {
                         if (dist < groupDist)
                         {
