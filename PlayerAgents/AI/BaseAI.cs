@@ -107,7 +107,7 @@ public class BaseAI
         foreach (var obj in Client.TrackedObjects.Values)
         {
             if (obj.Type == ObjectType.Item && obj.Location == loc)
-                _itemRetryTimes[(obj.Location, obj.Name)] = DateTime.UtcNow + ItemRetryDelay;
+                IgnoreItem(obj.Location, obj.Name, ItemRetryDelay);
         }
         if (_currentTarget != null &&
             _currentTarget.Type == ObjectType.Item &&
@@ -333,7 +333,7 @@ public class BaseAI
     private DateTime _lastMoveOrAttackTime = DateTime.MinValue;
     private DateTime _movementSaveSince = DateTime.MinValue;
     
-    private readonly Dictionary<(Point Location, string Name), DateTime> _itemRetryTimes = new();
+    private readonly Dictionary<(Point Location, string Name), RetryInfo> _itemRetryTimes = new();
     private readonly Dictionary<uint, DateTime> _monsterIgnoreTimes = new();
     private static readonly TimeSpan ItemRetryDelay = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan UnreachableItemRetryDelay = TimeSpan.FromSeconds(2);
@@ -349,6 +349,18 @@ public class BaseAI
     private Task? _inventoryTeleportTask;
     private HashSet<ItemType> _pendingBuyTypes = new();
 
+    private class RetryInfo
+    {
+        public DateTime RetryAt;
+        public TimeSpan Delay;
+
+        public RetryInfo(TimeSpan delay)
+        {
+            Delay = delay;
+            RetryAt = DateTime.UtcNow + delay;
+        }
+    }
+
     protected void IgnoreMonster(uint id, TimeSpan? duration = null)
     {
         _monsterIgnoreTimes[id] = DateTime.UtcNow + (duration ?? MonsterIgnoreDelay);
@@ -356,6 +368,21 @@ public class BaseAI
         {
             _currentTarget = null;
             _nextTargetSwitchTime = DateTime.MinValue;
+        }
+    }
+
+    private void IgnoreItem(Point location, string name, TimeSpan baseDelay)
+    {
+        var key = (location, name);
+        if (_itemRetryTimes.TryGetValue(key, out var info))
+        {
+            var newDelayTicks = Math.Max(info.Delay.Ticks * 2, baseDelay.Ticks);
+            info.Delay = TimeSpan.FromTicks(newDelayTicks);
+            info.RetryAt = DateTime.UtcNow + info.Delay;
+        }
+        else
+        {
+            _itemRetryTimes[key] = new RetryInfo(baseDelay);
         }
     }
 
@@ -618,7 +645,7 @@ public class BaseAI
         foreach (var obj in Client.TrackedObjects.Values)
         {
             if (obj.Type == ObjectType.Item && obj.Location == current &&
-                (!_itemRetryTimes.TryGetValue((obj.Location, obj.Name), out var retry) || DateTime.UtcNow >= retry) &&
+                (!_itemRetryTimes.TryGetValue((obj.Location, obj.Name), out var retry) || DateTime.UtcNow >= retry.RetryAt) &&
                 Client.HasFreeBagSpace() && Client.GetCurrentBagWeight() < Client.GetMaxBagWeight())
             {
                 bestDist = 0;
@@ -666,7 +693,7 @@ public class BaseAI
             }
             else if (obj.Type == ObjectType.Item)
             {
-                if (_itemRetryTimes.TryGetValue((obj.Location, obj.Name), out var retry) && DateTime.UtcNow < retry)
+                if (_itemRetryTimes.TryGetValue((obj.Location, obj.Name), out var retry) && DateTime.UtcNow < retry.RetryAt)
                     continue;
                 int dist = Functions.MaxDistance(current, obj.Location);
                 if (dist < itemDist)
@@ -742,7 +769,7 @@ public class BaseAI
                         (o.Type == ObjectType.Player || o.Type == ObjectType.Monster) &&
                         o.Location == target.Location);
                     var delay = path.Count == 0 || blocked ? UnreachableItemRetryDelay : ItemRetryDelay;
-                    _itemRetryTimes[(target.Location, target.Name)] = DateTime.UtcNow + delay;
+                    IgnoreItem(target.Location, target.Name, delay);
                     _currentTarget = null;
                 }
                 return true;
@@ -779,7 +806,7 @@ public class BaseAI
             {
                 await Client.PickUpAsync();
             }
-            _itemRetryTimes[(target.Location, target.Name)] = DateTime.UtcNow + ItemRetryDelay;
+            IgnoreItem(target.Location, target.Name, ItemRetryDelay);
             _currentTarget = null;
             return;
         }
@@ -1753,14 +1780,14 @@ public class BaseAI
                         for (int dy = -1; dy <= 1; dy++)
                         {
                             var loc = new Point(Client.CurrentLocation.X + dx, Client.CurrentLocation.Y + dy);
-                            _itemRetryTimes[(loc, drop.Info.FriendlyName)] = DateTime.UtcNow + DroppedItemRetryDelay;
+                            IgnoreItem(loc, drop.Info.FriendlyName, DroppedItemRetryDelay);
                         }
                     }
                 }
             }
 
             foreach (var kv in _itemRetryTimes.ToList())
-                if (DateTime.UtcNow >= kv.Value)
+                if (DateTime.UtcNow >= kv.Value.RetryAt)
                     _itemRetryTimes.Remove(kv.Key);
 
             foreach (var kv in _monsterIgnoreTimes.ToList())
