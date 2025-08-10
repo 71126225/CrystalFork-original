@@ -1044,6 +1044,7 @@ public class BaseAI
             {
                 if (!await OnBeginTravelToBestMapAsync())
                     return;
+                Client.LeaveGroup();
                 Client.Log($"Travelling to best map {_currentBestMap}");
                 await TryFeedMountAsync();
                 if (!await TravelToMapAsync(target))
