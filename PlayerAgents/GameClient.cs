@@ -996,7 +996,14 @@ public sealed partial class GameClient
 
         var bestPotionIndices = GetBestPotionIndices(goods);
 
+        var bestTorch = goods
+            .Where(g => g.Info?.Type == ItemType.Torch)
+            .OrderByDescending(g => g.CurrentDura)
+            .ThenByDescending(g => g.MaxDura)
+            .FirstOrDefault();
+
         var orderedGoods = goods
+            .Where(g => g.Info?.Type != ItemType.Torch || g == bestTorch)
             .OrderByDescending(g => GetBestItemScore(g))
             .ToList();
 
