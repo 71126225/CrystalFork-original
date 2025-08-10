@@ -1165,6 +1165,7 @@ public sealed partial class GameClient
             Level = _level,
             Class = _playerClass,
             GroupCount = _groupMembers.Count,
+            TameCount = _trackedObjects.Values.Count(o => o.Type == ObjectType.Monster && o.Tamed && o.Name.EndsWith($"({PlayerName})", StringComparison.OrdinalIgnoreCase)),
             MapFile = _currentMapFile,
             MapName = _currentMapName,
             X = _currentLocation.X,

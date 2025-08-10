@@ -13,6 +13,7 @@ public sealed class AgentStatus
     public ushort Level { get; init; }
     public MirClass? Class { get; init; }
     public int GroupCount { get; init; }
+    public int TameCount { get; init; }
     public string MapFile { get; init; } = string.Empty;
     public string MapName { get; init; } = string.Empty;
     public int X { get; init; }
@@ -35,7 +36,7 @@ static class AgentStatusFormatter
         var map = Path.GetFileNameWithoutExtension(status.MapFile);
         var cls = status.Class?.ToString() ?? string.Empty;
         if (cls.Length > 2) cls = cls.Substring(0, 2);
-        return $"{name} - Lv. {status.Level} ({cls})[{status.GroupCount}] - {map} ({status.MapName}) ({status.X},{status.Y}) - {status.Action}";
+        return $"{name} - Lv. {status.Level} ({cls})[{status.GroupCount}, {status.TameCount}] - {map} ({status.MapName}) ({status.X},{status.Y}) - {status.Action}";
     }
 }
 
