@@ -6,10 +6,13 @@ using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Linq;
+using Shared;
 
 public sealed class AgentStatus
 {
     public ushort Level { get; init; }
+    public MirClass? Class { get; init; }
+    public int GroupCount { get; init; }
     public string MapFile { get; init; } = string.Empty;
     public string MapName { get; init; } = string.Empty;
     public int X { get; init; }
@@ -23,6 +26,17 @@ public interface IAgentLogger
     void RegisterAgent(string agent);
     void RemoveAgent(string agent);
     void UpdateStatus(string agent, AgentStatus status);
+}
+
+static class AgentStatusFormatter
+{
+    public static string Format(string name, AgentStatus status)
+    {
+        var map = Path.GetFileNameWithoutExtension(status.MapFile);
+        var cls = status.Class?.ToString() ?? string.Empty;
+        if (cls.Length > 2) cls = cls.Substring(0, 2);
+        return $"{name} - Lv. {status.Level} ({cls})[{status.GroupCount}] - {map} ({status.MapName}) ({status.X},{status.Y}) - {status.Action}";
+    }
 }
 
 public sealed class ConsoleAgentLogger : IAgentLogger
@@ -39,8 +53,7 @@ public sealed class ConsoleAgentLogger : IAgentLogger
 
     public void UpdateStatus(string agent, AgentStatus status)
     {
-        var map = Path.GetFileNameWithoutExtension(status.MapFile);
-        Console.Error.WriteLine($"{agent} --- Level {status.Level} --- {map} ({status.MapName}) ({status.X},{status.Y}) --- {status.Action}");
+        Console.Error.WriteLine(AgentStatusFormatter.Format(agent, status));
     }
 }
 
@@ -195,10 +208,9 @@ public sealed class SummaryAgentLogger : IAgentLogger, IDisposable
         {
             var agent = _order[i];
             _status.TryGetValue(agent, out var status);
-            var map = Path.GetFileNameWithoutExtension(status.MapFile);
             int cycle = (int)(DateTime.UtcNow - status.CycleStart).TotalMilliseconds;
             string name = _debug ? $"{agent}({cycle})" : agent;
-            string cell = $"{name} --- Level {status.Level} --- {map} ({status.MapName}) ({status.X},{status.Y}) --- {status.Action}";
+            string cell = AgentStatusFormatter.Format(name, status);
             if (cell.Length > colWidth)
                 cell = cell.Substring(0, colWidth);
             cell = cell.PadRight(colWidth);

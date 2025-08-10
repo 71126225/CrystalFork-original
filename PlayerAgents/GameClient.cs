@@ -1163,6 +1163,8 @@ public sealed partial class GameClient
         var status = new AgentStatus
         {
             Level = _level,
+            Class = _playerClass,
+            GroupCount = _groupMembers.Count,
             MapFile = _currentMapFile,
             MapName = _currentMapName,
             X = _currentLocation.X,
